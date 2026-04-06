@@ -52,17 +52,17 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTO-01 | Phase 1 — VS Code Proxy Auto-Detection | Pending |
-| AUTO-02 | Phase 1 — VS Code Proxy Auto-Detection | Pending |
-| AUTO-03 | Phase 1 — VS Code Proxy Auto-Detection | Pending |
-| AUTO-04 | Phase 1 — VS Code Proxy Auto-Detection | Pending |
-| PROF-01 | Phase 2 — Provider Profile Fallback | Pending |
-| PROF-02 | Phase 2 — Provider Profile Fallback | Pending |
-| PROF-03 | Phase 2 — Provider Profile Fallback | Pending |
-| DIST-01 | Phase 3 — Build, Distribution & Documentation | Pending |
-| DIST-02 | Phase 3 — Build, Distribution & Documentation | Pending |
-| DOCS-01 | Phase 3 — Build, Distribution & Documentation | Pending |
-| DOCS-02 | Phase 3 — Build, Distribution & Documentation | Pending |
+| AUTO-01 | Phase 1 — Proxy Detection & Feedback | Pending |
+| AUTO-04 | Phase 1 — Proxy Detection & Feedback | Pending |
+| AUTO-02 | Phase 2 — Token Validation Bypass | Pending |
+| AUTO-03 | Phase 2 — Token Validation Bypass | Pending |
+| PROF-01 | Phase 3 — Provider Profile Fallback | Pending |
+| PROF-02 | Phase 3 — Provider Profile Fallback | Pending |
+| PROF-03 | Phase 3 — Provider Profile Fallback | Pending |
+| DIST-01 | Phase 4 — Build & Smoke Test | Pending |
+| DIST-02 | Phase 4 — Build & Smoke Test | Pending |
+| DOCS-01 | Phase 5 — Documentation | Pending |
+| DOCS-02 | Phase 5 — Documentation | Pending |
 
 **Coverage:**
 - v1 requirements: 11 total
@@ -71,4 +71,4 @@
 
 ---
 *Requirements defined: 2026-04-06*
-*Last updated: 2026-04-06 after roadmap creation*
+*Last updated: 2026-04-06 after roadmap revision (3 phases → 5 phases)*
