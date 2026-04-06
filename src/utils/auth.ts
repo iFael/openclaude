@@ -151,6 +151,18 @@ export function isAnthropicAuthEnabled(): boolean {
   return !shouldDisableAuth
 }
 
+/**
+ * Returns true when openclaude is running inside VS Code with the GitHub
+ * Copilot proxy active.  The VS Code launcher sets ANTHROPIC_API_KEY to a
+ * session token whose value always begins with "vscode-lm-".
+ *
+ * Use this to bypass flows (e.g. OAuth onboarding) that are irrelevant when
+ * the user authenticates via GitHub Copilot Pro+.
+ */
+export function isVsCodeProxy(): boolean {
+  return (process.env.ANTHROPIC_API_KEY ?? '').startsWith('vscode-lm-')
+}
+
 /** Where the auth token is being sourced from, if any. */
 // this code is closely related to isAnthropicAuthEnabled
 export function getAuthTokenSource() {
