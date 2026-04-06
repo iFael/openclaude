@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 3 context gathered
-last_updated: "2026-04-06T18:34:47.528Z"
+stopped_at: Completed 03-provider-profile-fallback 03-01-PLAN.md
+last_updated: "2026-04-06T18:44:27.566Z"
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 5
-  completed_plans: 4
-  percent: 80
+  completed_plans: 5
+  percent: 100
 ---
 
 # Project State
@@ -20,13 +20,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-06)
 
 **Core value:** `openclaude` works in VS Code terminal with Copilot Pro+ without additional configuration
-**Current focus:** Phase 03 — Provider Profile Fallback
+**Current focus:** Phase null
 
 ## Current Position
 
-Phase: 03 (Provider Profile Fallback) — NEXT
-Plan: -
-Status: Ready to execute
+Phase: null — EXECUTING
+Plan: 1 of ?
+Status: Executing Phase null
 
 Progress: [████░░░░░░] 40%
 
@@ -51,6 +51,7 @@ Progress: [████░░░░░░] 40%
 
 *Updated after each plan completion*
 | Phase 02 P01 | 15 | 1 tasks | 2 files |
+| Phase 03-provider-profile-fallback P01 | 15 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,8 @@ Recent decisions affecting current work:
 - [Phase 02]: isVsCodeProxy() used as sole trust signal for bypass guards — no additional token prefix check needed (D-05)
 - [Phase 02]: D-02 guard placed after ANTHROPIC_AUTH_TOKEN check in getAuthTokenSource, before OAuth checks
 - [Phase 02]: D-01 guard placed after preferThirdPartyAuthentication() in getAnthropicApiKeyWithSource, bypasses approved-list gate for ephemeral VS Code tokens
+- [Phase 03-provider-profile-fallback]: D-05 confirmed: 'vscode' NOT in ProviderProfile type — flag-only provider, session-ephemeral token must not persist
+- [Phase 03-provider-profile-fallback]: applyProviderFlag('vscode') sets CLAUDE_CODE_ENTRYPOINT and CLAUDECODE via ??= to activate Phase 2 bypass guards without overwriting VS Code-injected values
 
 ### Pending Todos
 
@@ -79,6 +82,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-06T18:24:09.185Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-provider-profile-fallback/03-CONTEXT.md
+Last session: 2026-04-06T18:44:27.560Z
+Stopped at: Completed 03-provider-profile-fallback 03-01-PLAN.md
+Resume file: None

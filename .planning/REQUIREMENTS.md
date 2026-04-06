@@ -14,9 +14,9 @@
 
 ### Provider Profile
 
-- [ ] **PROF-01**: Exists um provider profile `vscode` configurável via `/provider` ou `--profile vscode`
-- [ ] **PROF-02**: O profile `vscode` permite sobrescrever `base_url` e `api_key` manualmente como fallback
-- [ ] **PROF-03**: O profile `vscode` é listado nas opções de provider com descrição clara
+- [x] **PROF-01**: Exists um provider profile `vscode` configurável via `/provider` ou `--profile vscode`
+- [x] **PROF-02**: O profile `vscode` permite sobrescrever `base_url` e `api_key` manualmente como fallback
+- [x] **PROF-03**: O profile `vscode` é listado nas opções de provider com descrição clara
 
 ### Build & Distribution
 
@@ -56,9 +56,9 @@
 | AUTO-04 | Phase 1 — Proxy Detection & Feedback | Pending |
 | AUTO-02 | Phase 2 — Token Validation Bypass | Complete |
 | AUTO-03 | Phase 2 — Token Validation Bypass | Complete |
-| PROF-01 | Phase 3 — Provider Profile Fallback | Pending |
-| PROF-02 | Phase 3 — Provider Profile Fallback | Pending |
-| PROF-03 | Phase 3 — Provider Profile Fallback | Pending |
+| PROF-01 | Phase 3 — Provider Profile Fallback | Complete |
+| PROF-02 | Phase 3 — Provider Profile Fallback | Complete |
+| PROF-03 | Phase 3 — Provider Profile Fallback | Complete |
 | DIST-01 | Phase 4 — Build & Smoke Test | Pending |
 | DIST-02 | Phase 4 — Build & Smoke Test | Pending |
 | DOCS-01 | Phase 5 — Documentation | Pending |

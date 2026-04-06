@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Proxy Detection & Feedback** - Detect VS Code proxy env vars and confirm proxy mode to the user
 - [x] **Phase 2: Token Validation Bypass** - Accept `vscode-lm-*` tokens and skip OAuth when proxy is detected (completed 2026-04-06)
-- [ ] **Phase 3: Provider Profile Fallback** - Add explicit `vscode` provider profile for manual activation
+- [x] **Phase 3: Provider Profile Fallback** - Add explicit `vscode` provider profile for manual activation (completed 2026-04-06)
 - [ ] **Phase 4: Build & Smoke Test** - Compile all changes and verify the global binary end-to-end
 - [ ] **Phase 5: Documentation** - Document the integration so users can set it up and verify it works
 
@@ -67,7 +67,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 03-01-PLAN.md — Add `vscode` to VALID_PROVIDERS and applyProviderFlag() in providerFlag.ts, add tests, and add vscode to ProviderManager preset list
+- [x] 03-01-PLAN.md — Add `vscode` to VALID_PROVIDERS and applyProviderFlag() in providerFlag.ts, add tests, and add vscode to ProviderManager preset list
 **UI hint**: no
 
 ### Phase 4: Build & Smoke Test
@@ -110,7 +110,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Proxy Detection & Feedback | 2/2 | Complete | 2026-04-06 |
 | 2. Token Validation Bypass | 2/2 | Complete   | 2026-04-06 |
-| 3. Provider Profile Fallback | 0/1 | Not started | - |
+| 3. Provider Profile Fallback | 1/1 | Complete   | 2026-04-06 |
 | 4. Build & Smoke Test | 0/2 | Not started | - |
 | 5. Documentation | 0/2 | Not started | - |
 
