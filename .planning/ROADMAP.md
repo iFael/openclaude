@@ -49,11 +49,11 @@ Plans:
   2. A `vscode-lm-*` value passed as `ANTHROPIC_API_KEY` passes auth validation without modification or error
   3. When proxy mode is detected (from Phase 1), no OAuth flow, token renewal, or Anthropic credential check is attempted
   4. The existing auth paths for standard Anthropic API keys and OAuth are unaffected — no regressions
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: Modify `getAuthTokenSource()` in `src/utils/auth.ts` to treat `vscode-lm-*` prefix as a valid token format
-- [ ] 02-02: Add conditional OAuth bypass — when `isVsCodeProxy()` returns true, skip Anthropic credential validation entirely
+- [ ] 02-01-PLAN.md — Add bypass guards to `getAuthTokenSource()` and `getAnthropicApiKeyWithSource()` in `src/utils/auth.ts` with TDD test coverage
+- [ ] 02-02-PLAN.md — Add `isVsCodeProxy()` guard to `Onboarding.tsx` `apiKeyNeedingApproval` memo to suppress approval dialog in proxy sessions
 **UI hint**: no
 
 ### Phase 3: Provider Profile Fallback
