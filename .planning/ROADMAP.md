@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Proxy Detection & Feedback** - Detect VS Code proxy env vars and confirm proxy mode to the user
 - [x] **Phase 2: Token Validation Bypass** - Accept `vscode-lm-*` tokens and skip OAuth when proxy is detected (completed 2026-04-06)
-- [x] **Phase 3: Provider Profile Fallback** - Add explicit `vscode` provider profile for manual activation (completed 2026-04-06)
+- [x] **Phase 3: Provider Profile Fallback** - Add explicit `vscode` provider profile for manual activation (completed 2026-04-06)
 - [ ] **Phase 4: Build & Smoke Test** - Compile all changes and verify the global binary end-to-end
 - [ ] **Phase 5: Documentation** - Document the integration so users can set it up and verify it works
 
@@ -76,14 +76,14 @@ Plans:
 **Requirements**: DIST-01, DIST-02
 **Success Criteria** (what must be TRUE):
   1. `bun run build` completes without errors and produces `dist/cli.mjs` incorporating all Phase 1–3 changes
-  2. `npm install -g` installs the updated binary cleanly
+  2. `npm install -g .` installs the updated binary cleanly
   3. `openclaude --version` reports the correct updated version number after global reinstall
   4. A manual test inside VS Code's integrated terminal confirms the proxy message appears and a session starts without token rejection errors
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: Bump version in `package.json`, run `bun run build`, install globally with `npm install -g`, verify with `openclaude --version`
-- [ ] 04-02: Run `bun run smoke` and execute a manual end-to-end verification inside VS Code terminal with Copilot Pro+ active
+- [ ] 04-01-PLAN.md — Bump version in `package.json` to 0.1.9, run `bun run build`, install globally with `npm install -g .`, verify with `openclaude --version`
+- [ ] 04-02-PLAN.md — Run `bun run smoke` and execute a manual end-to-end verification inside VS Code terminal with Copilot Pro+ active
 **UI hint**: no
 
 ### Phase 5: Documentation
