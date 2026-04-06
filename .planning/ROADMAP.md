@@ -16,7 +16,7 @@ v1 — VS Code Proxy Integration delivers native support for the VS Code Claude 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Proxy Detection & Feedback** - Detect VS Code proxy env vars and confirm proxy mode to the user
+- [x] **Phase 1: Proxy Detection & Feedback** - Detect VS Code proxy env vars and confirm proxy mode to the user
 - [ ] **Phase 2: Token Validation Bypass** - Accept `vscode-lm-*` tokens and skip OAuth when proxy is detected
 - [ ] **Phase 3: Provider Profile Fallback** - Add explicit `vscode` provider profile for manual activation
 - [ ] **Phase 4: Build & Smoke Test** - Compile all changes and verify the global binary end-to-end
@@ -36,8 +36,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Implement `isVsCodeProxy()` detection function in `src/utils/auth.ts`
-- [ ] 01-02-PLAN.md — Wire detection into startup path, print proxy confirmation message
+- [x] 01-01-PLAN.md — Implement `isVsCodeProxy()` detection function in `src/utils/auth.ts`
+- [x] 01-02-PLAN.md — Wire detection into startup path, print proxy confirmation message
 **UI hint**: no
 
 ### Phase 2: Token Validation Bypass
@@ -110,7 +110,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Proxy Detection & Feedback | 0/2 | Not started | - |
+| 1. Proxy Detection & Feedback | 2/2 | Complete | 2026-04-06 |
 | 2. Token Validation Bypass | 0/2 | Not started | - |
 | 3. Provider Profile Fallback | 0/3 | Not started | - |
 | 4. Build & Smoke Test | 0/2 | Not started | - |
@@ -125,8 +125,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Requirement | Description | Phase | Status |
 |-------------|-------------|-------|--------|
-| AUTO-01 | Detect `ANTHROPIC_BASE_URL` pointing to localhost and activate proxy mode automatically | Phase 1 | Pending |
-| AUTO-04 | Display informative message when VS Code proxy is detected | Phase 1 | Pending |
+| AUTO-01 | Detect `ANTHROPIC_BASE_URL` pointing to localhost and activate proxy mode automatically | Phase 1 | Done |
+| AUTO-04 | Display informative message when VS Code proxy is detected | Phase 1 | Done |
 | AUTO-02 | Accept `vscode-lm-*` tokens as `ANTHROPIC_API_KEY` without rejection | Phase 2 | Pending |
 | AUTO-03 | Skip OAuth validation when running in VS Code proxy mode | Phase 2 | Pending |
 | PROF-01 | `vscode` provider profile available via `/provider` or `--profile vscode` | Phase 3 | Pending |
