@@ -33,11 +33,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. The terminal displays a clear informative message (e.g., "Using VS Code Claude Code proxy") confirming proxy mode is active
   3. Detection works for any dynamic port — not hardcoded to a specific port number
   4. When the proxy env vars are absent, behavior is identical to before — no regression on normal Anthropic API or other provider flows
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: Implement `isVsCodeProxy()` detection in `src/utils/auth.ts` that inspects `ANTHROPIC_BASE_URL` (localhost check) and `CLAUDECODE` env vars
-- [ ] 01-02: Wire detection into the `openclaude` startup path to print the proxy confirmation message when active
+- [ ] 01-01-PLAN.md — Implement `isVsCodeProxy()` detection function in `src/utils/auth.ts`
+- [ ] 01-02-PLAN.md — Wire detection into startup path, print proxy confirmation message
 **UI hint**: no
 
 ### Phase 2: Token Validation Bypass
