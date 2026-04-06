@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Proxy Detection & Feedback** - Detect VS Code proxy env vars and confirm proxy mode to the user
 - [x] **Phase 2: Token Validation Bypass** - Accept `vscode-lm-*` tokens and skip OAuth when proxy is detected (completed 2026-04-06)
 - [x] **Phase 3: Provider Profile Fallback** - Add explicit `vscode` provider profile for manual activation (completed 2026-04-06)
-- [ ] **Phase 4: Build & Smoke Test** - Compile all changes and verify the global binary end-to-end
+- [x] **Phase 4: Build & Smoke Test** - Compile all changes and verify the global binary end-to-end (completed 2026-04-06)
 - [ ] **Phase 5: Documentation** - Document the integration so users can set it up and verify it works
 
 ## Phase Details
@@ -83,7 +83,7 @@ Plans:
 
 Plans:
 - [x] 04-01-PLAN.md — Bump version in `package.json` to 0.1.9, run `bun run build`, install globally with `npm install -g .`, verify with `openclaude --version`
-- [ ] 04-02-PLAN.md — Run `bun run smoke` and execute a manual end-to-end verification inside VS Code terminal with Copilot Pro+ active
+- [x] 04-02-PLAN.md — Run `bun run smoke` and execute a manual end-to-end verification inside VS Code terminal with Copilot Pro+ active
 **UI hint**: no
 
 ### Phase 5: Documentation
@@ -130,8 +130,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | PROF-01 | `vscode` provider profile available via `/provider` or `--provider vscode` | Phase 3 | Done |
 | PROF-02 | `vscode` profile allows manual override of `base_url` and `api_key` | Phase 3 | Done |
 | PROF-03 | `vscode` profile listed in provider options with a clear description | Phase 3 | Done |
-| DIST-01 | Source changes compiled with `bun run build` and global binary updated | Phase 4 | Pending |
-| DIST-02 | `openclaude --version` reports correct version after update | Phase 4 | Pending |
+| DIST-01 | Source changes compiled with `bun run build` and global binary updated | Phase 4 | Done |
+| DIST-02 | `openclaude --version` reports correct version after update | Phase 4 | Done |
 | DOCS-01 | README contains "VS Code / GitHub Copilot Pro+" section with usage instructions | Phase 5 | Pending |
 | DOCS-02 | Instructions include how to verify the integration is working | Phase 5 | Pending |
 
