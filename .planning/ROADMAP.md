@@ -82,7 +82,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Bump version in `package.json` to 0.1.9, run `bun run build`, install globally with `npm install -g .`, verify with `openclaude --version`
+- [x] 04-01-PLAN.md — Bump version in `package.json` to 0.1.9, run `bun run build`, install globally with `npm install -g .`, verify with `openclaude --version`
 - [ ] 04-02-PLAN.md — Run `bun run smoke` and execute a manual end-to-end verification inside VS Code terminal with Copilot Pro+ active
 **UI hint**: no
 
