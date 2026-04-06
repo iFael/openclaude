@@ -95,6 +95,28 @@ function isManagedOAuthContext(): boolean {
   )
 }
 
+/**
+ * Detects when openclaude is running inside the VS Code Claude Code proxy
+ * environment (GitHub Copilot Pro+ terminal integration). Returns true when
+ * ALL three conditions hold: ANTHROPIC_BASE_URL points to localhost (any port),
+ * CLAUDE_CODE_ENTRYPOINT is 'sdk-ts', and CLAUDECODE is '1'.
+ * Pure synchronous function — no I/O, no side effects. (D-01, D-02, D-03)
+ */
+export function isVsCodeProxy(): boolean {
+  const baseUrl = process.env.ANTHROPIC_BASE_URL
+  if (!baseUrl) return false
+  try {
+    const hostname = new URL(baseUrl).hostname
+    return (
+      hostname === 'localhost' &&
+      process.env.CLAUDE_CODE_ENTRYPOINT === 'sdk-ts' &&
+      process.env.CLAUDECODE === '1'
+    )
+  } catch {
+    return false
+  }
+}
+
 /** Whether we are supporting direct 1P auth. */
 // this code is closely related to getAuthTokenSource
 export function isAnthropicAuthEnabled(): boolean {
