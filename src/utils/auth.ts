@@ -190,6 +190,12 @@ export function getAuthTokenSource() {
     return { source: 'ANTHROPIC_AUTH_TOKEN' as const, hasToken: true }
   }
 
+  // VS Code proxy: treat env-var API key as a valid auth source (D-02)
+  // isVsCodeProxy() is the sole trust signal — no additional prefix check needed (D-05)
+  if (isVsCodeProxy() && process.env.ANTHROPIC_API_KEY) {
+    return { source: 'ANTHROPIC_API_KEY' as const, hasToken: true }
+  }
+
   if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
     return { source: 'CLAUDE_CODE_OAUTH_TOKEN' as const, hasToken: true }
   }
@@ -285,6 +291,12 @@ export function getAnthropicApiKeyWithSource(
       key: apiKeyEnv,
       source: 'ANTHROPIC_API_KEY',
     }
+  }
+
+  // VS Code proxy: bypass the customApiKeyResponses.approved list gate (D-01)
+  // Token is session-ephemeral — it can never be in the approved list by design (D-05)
+  if (isVsCodeProxy() && apiKeyEnv) {
+    return { key: apiKeyEnv, source: 'ANTHROPIC_API_KEY' }
   }
 
   if (isEnvTruthy(process.env.CI) || process.env.NODE_ENV === 'test') {
