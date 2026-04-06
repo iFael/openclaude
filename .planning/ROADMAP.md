@@ -127,8 +127,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------------|-------------|-------|--------|
 | AUTO-01 | Detect `ANTHROPIC_BASE_URL` pointing to localhost and activate proxy mode automatically | Phase 1 | Done |
 | AUTO-04 | Display informative message when VS Code proxy is detected | Phase 1 | Done |
-| AUTO-02 | Accept `vscode-lm-*` tokens as `ANTHROPIC_API_KEY` without rejection | Phase 2 | Pending |
-| AUTO-03 | Skip OAuth validation when running in VS Code proxy mode | Phase 2 | Pending |
+| AUTO-02 | Accept `vscode-lm-*` tokens as `ANTHROPIC_API_KEY` without rejection | Phase 2 | Done |
+| AUTO-03 | Skip OAuth validation when running in VS Code proxy mode | Phase 2 | Done |
 | PROF-01 | `vscode` provider profile available via `/provider` or `--profile vscode` | Phase 3 | Pending |
 | PROF-02 | `vscode` profile allows manual override of `base_url` and `api_key` | Phase 3 | Pending |
 | PROF-03 | `vscode` profile listed in provider options with a clear description | Phase 3 | Pending |
