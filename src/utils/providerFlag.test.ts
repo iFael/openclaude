@@ -18,6 +18,8 @@ const RESET_KEYS = [
   'OPENAI_API_KEY',
   'OPENAI_MODEL',
   'GEMINI_MODEL',
+  'CLAUDE_CODE_ENTRYPOINT',
+  'CLAUDECODE',
 ] as const
 
 beforeEach(() => {
@@ -140,6 +142,35 @@ describe('applyProviderFlag - ollama', () => {
     process.env.OPENAI_BASE_URL = 'http://my-ollama:11434/v1'
     applyProviderFlag('ollama', [])
     expect(process.env.OPENAI_BASE_URL).toBe('http://my-ollama:11434/v1')
+  })
+})
+
+describe('applyProviderFlag - vscode', () => {
+  test('returns no error for vscode provider', () => {
+    const result = applyProviderFlag('vscode', [])
+    expect(result.error).toBeUndefined()
+  })
+
+  test('sets CLAUDE_CODE_ENTRYPOINT=sdk-ts', () => {
+    applyProviderFlag('vscode', [])
+    expect(process.env.CLAUDE_CODE_ENTRYPOINT).toBe('sdk-ts')
+  })
+
+  test('sets CLAUDECODE=1', () => {
+    applyProviderFlag('vscode', [])
+    expect(process.env.CLAUDECODE).toBe('1')
+  })
+
+  test('does not overwrite existing CLAUDE_CODE_ENTRYPOINT', () => {
+    process.env.CLAUDE_CODE_ENTRYPOINT = 'pre-existing'
+    applyProviderFlag('vscode', [])
+    expect(process.env.CLAUDE_CODE_ENTRYPOINT).toBe('pre-existing')
+  })
+
+  test('does not overwrite existing CLAUDECODE', () => {
+    process.env.CLAUDECODE = 'pre-existing'
+    applyProviderFlag('vscode', [])
+    expect(process.env.CLAUDECODE).toBe('pre-existing')
   })
 })
 
