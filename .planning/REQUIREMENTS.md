@@ -8,8 +8,8 @@
 ### Auto-Detection
 
 - [ ] **AUTO-01**: OpenClaude detecta a presença de `ANTHROPIC_BASE_URL` apontando para localhost e ativa modo VS Code proxy automaticamente
-- [ ] **AUTO-02**: OpenClaude aceita tokens no formato `vscode-lm-*` como `ANTHROPIC_API_KEY` válido (sem rejeitar por formato)
-- [ ] **AUTO-03**: No modo VS Code proxy, OpenClaude não tenta validar/renovar o token via fluxo OAuth da Anthropic
+- [x] **AUTO-02**: OpenClaude aceita tokens no formato `vscode-lm-*` como `ANTHROPIC_API_KEY` válido (sem rejeitar por formato)
+- [x] **AUTO-03**: No modo VS Code proxy, OpenClaude não tenta validar/renovar o token via fluxo OAuth da Anthropic
 - [ ] **AUTO-04**: OpenClaude exibe mensagem informativa quando detecta o proxy do VS Code (ex: "Using VS Code Claude Code proxy")
 
 ### Provider Profile
@@ -54,8 +54,8 @@
 |-------------|-------|--------|
 | AUTO-01 | Phase 1 — Proxy Detection & Feedback | Pending |
 | AUTO-04 | Phase 1 — Proxy Detection & Feedback | Pending |
-| AUTO-02 | Phase 2 — Token Validation Bypass | Pending |
-| AUTO-03 | Phase 2 — Token Validation Bypass | Pending |
+| AUTO-02 | Phase 2 — Token Validation Bypass | Complete |
+| AUTO-03 | Phase 2 — Token Validation Bypass | Complete |
 | PROF-01 | Phase 3 — Provider Profile Fallback | Pending |
 | PROF-02 | Phase 3 — Provider Profile Fallback | Pending |
 | PROF-03 | Phase 3 — Provider Profile Fallback | Pending |

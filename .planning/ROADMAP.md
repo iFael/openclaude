@@ -17,7 +17,7 @@ v1 — VS Code Proxy Integration delivers native support for the VS Code Claude 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Proxy Detection & Feedback** - Detect VS Code proxy env vars and confirm proxy mode to the user
-- [ ] **Phase 2: Token Validation Bypass** - Accept `vscode-lm-*` tokens and skip OAuth when proxy is detected
+- [x] **Phase 2: Token Validation Bypass** - Accept `vscode-lm-*` tokens and skip OAuth when proxy is detected (completed 2026-04-06)
 - [ ] **Phase 3: Provider Profile Fallback** - Add explicit `vscode` provider profile for manual activation
 - [ ] **Phase 4: Build & Smoke Test** - Compile all changes and verify the global binary end-to-end
 - [ ] **Phase 5: Documentation** - Document the integration so users can set it up and verify it works
@@ -52,8 +52,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Add bypass guards to `getAuthTokenSource()` and `getAnthropicApiKeyWithSource()` in `src/utils/auth.ts` with TDD test coverage
-- [ ] 02-02-PLAN.md — Add `isVsCodeProxy()` guard to `Onboarding.tsx` `apiKeyNeedingApproval` memo to suppress approval dialog in proxy sessions
+- [x] 02-01-PLAN.md — Add bypass guards to `getAuthTokenSource()` and `getAnthropicApiKeyWithSource()` in `src/utils/auth.ts` with TDD test coverage
+- [x] 02-02-PLAN.md — Add `isVsCodeProxy()` guard to `Onboarding.tsx` `apiKeyNeedingApproval` memo to suppress approval dialog in proxy sessions
 **UI hint**: no
 
 ### Phase 3: Provider Profile Fallback
@@ -111,7 +111,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Proxy Detection & Feedback | 2/2 | Complete | 2026-04-06 |
-| 2. Token Validation Bypass | 0/2 | Not started | - |
+| 2. Token Validation Bypass | 2/2 | Complete   | 2026-04-06 |
 | 3. Provider Profile Fallback | 0/3 | Not started | - |
 | 4. Build & Smoke Test | 0/2 | Not started | - |
 | 5. Documentation | 0/2 | Not started | - |
