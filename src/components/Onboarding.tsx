@@ -134,7 +134,7 @@ export function Onboarding({
       component: <ApproveApiKey customApiKeyTruncated={apiKeyNeedingApproval} onDone={handleApiKeyDone} />
     });
   }
-  if (oauthEnabled) {
+  if (oauthEnabled && !isVsCodeProxy()) {
     steps.push({
       id: 'oauth',
       component: <SkippableStep skip={skipOAuth} onSkip={goToNextStep}>
