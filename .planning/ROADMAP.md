@@ -127,9 +127,9 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | AUTO-04 | Display informative message when VS Code proxy is detected | Phase 1 | Done |
 | AUTO-02 | Accept `vscode-lm-*` tokens as `ANTHROPIC_API_KEY` without rejection | Phase 2 | Done |
 | AUTO-03 | Skip OAuth validation when running in VS Code proxy mode | Phase 2 | Done |
-| PROF-01 | `vscode` provider profile available via `/provider` or `--provider vscode` | Phase 3 | Pending |
-| PROF-02 | `vscode` profile allows manual override of `base_url` and `api_key` | Phase 3 | Pending |
-| PROF-03 | `vscode` profile listed in provider options with a clear description | Phase 3 | Pending |
+| PROF-01 | `vscode` provider profile available via `/provider` or `--provider vscode` | Phase 3 | Done |
+| PROF-02 | `vscode` profile allows manual override of `base_url` and `api_key` | Phase 3 | Done |
+| PROF-03 | `vscode` profile listed in provider options with a clear description | Phase 3 | Done |
 | DIST-01 | Source changes compiled with `bun run build` and global binary updated | Phase 4 | Pending |
 | DIST-02 | `openclaude --version` reports correct version after update | Phase 4 | Pending |
 | DOCS-01 | README contains "VS Code / GitHub Copilot Pro+" section with usage instructions | Phase 5 | Pending |
