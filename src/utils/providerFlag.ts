@@ -19,6 +19,7 @@ export const VALID_PROVIDERS = [
   'bedrock',
   'vertex',
   'ollama',
+  'vscode', // VS Code Claude Code proxy — routes through GitHub Copilot Pro+
 ] as const
 
 export type ProviderFlagName = (typeof VALID_PROVIDERS)[number]
@@ -112,6 +113,16 @@ export function applyProviderFlag(
       process.env.OPENAI_BASE_URL ??= 'http://localhost:11434/v1'
       process.env.OPENAI_API_KEY ??= 'ollama'
       if (model) process.env.OPENAI_MODEL ??= model
+      break
+
+    case 'vscode':
+      // Activate VS Code proxy signals so isVsCodeProxy() returns true,
+      // which fires the Phase 2 bypass guards in auth.ts automatically.
+      // ??= preserves values already injected by VS Code terminal.
+      process.env.CLAUDE_CODE_ENTRYPOINT ??= 'sdk-ts'
+      process.env.CLAUDECODE ??= '1'
+      // ANTHROPIC_BASE_URL and ANTHROPIC_API_KEY are NOT set here — user must
+      // provide them via env var (D-03, D-04). This is intentional.
       break
   }
 
