@@ -17,7 +17,7 @@ v1 — VS Code Proxy Integration delivers native support for the VS Code Claude 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Proxy Detection & Feedback** - Detect VS Code proxy env vars and confirm proxy mode to the user
-- [x] **Phase 2: Token Validation Bypass** - Accept `vscode-lm-*` tokens and skip OAuth when proxy is detected (completed 2026-04-06)
+- [x] **Phase 2: Token Validation Bypass** - Accept `vscode-lm-*` tokens and skip OAuth when proxy is detected (completed 2026-04-06)
 - [ ] **Phase 3: Provider Profile Fallback** - Add explicit `vscode` provider profile for manual activation
 - [ ] **Phase 4: Build & Smoke Test** - Compile all changes and verify the global binary end-to-end
 - [ ] **Phase 5: Documentation** - Document the integration so users can set it up and verify it works
@@ -57,19 +57,17 @@ Plans:
 **UI hint**: no
 
 ### Phase 3: Provider Profile Fallback
-**Goal**: Users can explicitly activate VS Code proxy mode via `openclaude --profile vscode` when env vars are not automatically injected by the terminal
+**Goal**: Users can explicitly activate VS Code proxy mode via `openclaude --provider vscode` when env vars are not automatically injected by the terminal
 **Depends on**: Phase 2
 **Requirements**: PROF-01, PROF-02, PROF-03
 **Success Criteria** (what must be TRUE):
-  1. `openclaude --profile vscode` launches using VS Code proxy settings without requiring `ANTHROPIC_BASE_URL` or `ANTHROPIC_API_KEY` env vars to be set
-  2. The `vscode` profile accepts manual overrides for `base_url` and `api_key` to support non-standard proxy configurations
-  3. Running `/provider` or the provider selection UI lists the `vscode` profile with a description that explains it routes through the VS Code Claude Code proxy
-**Plans**: TBD
+  1. `openclaude --provider vscode` activates VS Code proxy signals (CLAUDE_CODE_ENTRYPOINT=sdk-ts, CLAUDECODE=1) so isVsCodeProxy() returns true and all Phase 2 bypass guards fire
+  2. The `vscode` flag does not change ANTHROPIC_BASE_URL or ANTHROPIC_API_KEY — user provides them via env var
+  3. Running `/provider` and choosing "Add provider" lists `vscode` with description "VS Code Claude Code proxy — routes api calls through GitHub Copilot Pro+"
+**Plans**: 1 plan
 
 Plans:
-- [ ] 03-01: Add `vscode` profile definition to `src/utils/providerProfiles.ts` with default `base_url` handling and `api_key` passthrough
-- [ ] 03-02: Register `--profile vscode` CLI flag and `/provider vscode` command routing in the CLI entrypoint (`bin/openclaude`)
-- [ ] 03-03: Add human-readable description string for the `vscode` profile in the provider listing
+- [ ] 03-01-PLAN.md — Add `vscode` to VALID_PROVIDERS and applyProviderFlag() in providerFlag.ts, add tests, and add vscode to ProviderManager preset list
 **UI hint**: no
 
 ### Phase 4: Build & Smoke Test
@@ -93,13 +91,13 @@ Plans:
 **Depends on**: Phase 4
 **Requirements**: DOCS-01, DOCS-02
 **Success Criteria** (what must be TRUE):
-  1. The README contains a dedicated "VS Code / GitHub Copilot Pro+" section covering prerequisites, how auto-detection works, and the `--profile vscode` fallback
+  1. The README contains a dedicated "VS Code / GitHub Copilot Pro+" section covering prerequisites, how auto-detection works, and the `--provider vscode` fallback
   2. The section includes a step-by-step verification checklist so users can confirm the integration is active and working correctly
   3. A user with no prior knowledge of the project can follow the README alone to go from zero to a working `openclaude` session in VS Code
 **Plans**: TBD
 
 Plans:
-- [ ] 05-01: Write "VS Code / GitHub Copilot Pro+" section in README — prerequisites, auto-detection behavior, `--profile vscode` fallback usage
+- [ ] 05-01: Write "VS Code / GitHub Copilot Pro+" section in README — prerequisites, auto-detection behavior, `--provider vscode` fallback usage
 - [ ] 05-02: Add verification checklist to README — proxy message confirmation, `openclaude --version` check, session start confirmation
 **UI hint**: no
 
@@ -112,7 +110,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Proxy Detection & Feedback | 2/2 | Complete | 2026-04-06 |
 | 2. Token Validation Bypass | 2/2 | Complete   | 2026-04-06 |
-| 3. Provider Profile Fallback | 0/3 | Not started | - |
+| 3. Provider Profile Fallback | 0/1 | Not started | - |
 | 4. Build & Smoke Test | 0/2 | Not started | - |
 | 5. Documentation | 0/2 | Not started | - |
 
@@ -129,7 +127,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | AUTO-04 | Display informative message when VS Code proxy is detected | Phase 1 | Done |
 | AUTO-02 | Accept `vscode-lm-*` tokens as `ANTHROPIC_API_KEY` without rejection | Phase 2 | Done |
 | AUTO-03 | Skip OAuth validation when running in VS Code proxy mode | Phase 2 | Done |
-| PROF-01 | `vscode` provider profile available via `/provider` or `--profile vscode` | Phase 3 | Pending |
+| PROF-01 | `vscode` provider profile available via `/provider` or `--provider vscode` | Phase 3 | Pending |
 | PROF-02 | `vscode` profile allows manual override of `base_url` and `api_key` | Phase 3 | Pending |
 | PROF-03 | `vscode` profile listed in provider options with a clear description | Phase 3 | Pending |
 | DIST-01 | Source changes compiled with `bun run build` and global binary updated | Phase 4 | Pending |
