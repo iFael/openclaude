@@ -49,7 +49,7 @@ import { canUserConfigureAdvisor, getInitialAdvisorSetting, isAdvisorEnabled, is
 import { isAgentSwarmsEnabled } from './utils/agentSwarmsEnabled.js';
 import { count, uniq } from './utils/array.js';
 import { installAsciicastRecorder } from './utils/asciicast.js';
-import { getSubscriptionType, isClaudeAISubscriber, prefetchAwsCredentialsAndBedRockInfoIfSafe, prefetchGcpCredentialsIfSafe, validateForceLoginOrg } from './utils/auth.js';
+import { getSubscriptionType, isClaudeAISubscriber, isVsCodeProxy, prefetchAwsCredentialsAndBedRockInfoIfSafe, prefetchGcpCredentialsIfSafe, validateForceLoginOrg } from './utils/auth.js';
 import { checkHasTrustDialogAccepted, getGlobalConfig, getRemoteControlAtStartup, isAutoUpdaterDisabled, saveGlobalConfig } from './utils/config.js';
 import { seedEarlyInput, stopCapturingEarlyInput } from './utils/earlyInput.js';
 import { getInitialEffortSetting, parseEffortValue } from './utils/effort.js';
@@ -814,6 +814,11 @@ export async function main() {
 
   // Initialize entrypoint based on mode - needs to be set before any event is logged
   initializeEntrypoint(isNonInteractive);
+
+  // Print VS Code proxy confirmation before session init — interactive only (D-05, D-06, D-07, D-08)
+  if (isVsCodeProxy() && isInteractive && !isBareMode()) {
+    process.stderr.write('Using VS Code Claude Code proxy (GitHub Copilot Pro+)\n')
+  }
 
   // Determine client type
   const clientType = (() => {
