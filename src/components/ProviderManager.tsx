@@ -560,6 +560,11 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
         description: 'Local LM Studio endpoint',
       },
       {
+        value: 'vscode',
+        label: 'VS Code',
+        description: 'VS Code Claude Code proxy — routes api calls through GitHub Copilot Pro+',
+      },
+      {
         value: 'custom',
         label: 'Custom',
         description: 'Any OpenAI-compatible provider',
@@ -588,6 +593,16 @@ export function ProviderManager({ mode, onDone }: Props): React.ReactNode {
           onChange={value => {
             if (value === 'skip') {
               closeWithCancelled('Provider setup skipped')
+              return
+            }
+            if (value === 'vscode') {
+              onDone({
+                action: 'cancelled',
+                message:
+                  'VS Code proxy mode is activated with the --provider vscode flag, not a saved profile. ' +
+                  'Set ANTHROPIC_BASE_URL to your VS Code proxy URL and ANTHROPIC_API_KEY to the session token in your environment, ' +
+                  'then run: openclaude --provider vscode',
+              })
               return
             }
             startCreateFromPreset(value as ProviderPreset)
