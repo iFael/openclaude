@@ -719,6 +719,8 @@ export const SettingsSchema = lazySchema(() =>
           z.object({
             base_url: z.string().url().describe('OpenAI-compatible API endpoint (must be https:// or http://)'),
             api_key: z.string().describe('API key for this provider'),
+            fallbacks: z.array(z.string()).optional()
+              .describe('Ordered list of fallback model names to try when this model fails. Each name must exist in agentModels.'),
           }),
         )
         .optional()

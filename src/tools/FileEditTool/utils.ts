@@ -13,6 +13,7 @@ import {
   convertLeadingTabsToSpaces,
   readFileSyncCached,
 } from '../../utils/file.js'
+import { hashAnchoredMatch } from './hashAnchoredEdit.js'
 import type { EditInput, FileEdit } from './types.js'
 
 // Claude can't output curly quotes, so we define them as constants here for Claude to use
@@ -89,7 +90,8 @@ export function findActualString(
     return fileContent.substring(searchIndex, searchIndex + searchString.length)
   }
 
-  return null
+  // Try hash-anchored match as final fallback (tolerates whitespace/indentation differences)
+  return hashAnchoredMatch(fileContent, searchString)
 }
 
 /**

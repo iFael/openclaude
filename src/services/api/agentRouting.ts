@@ -73,3 +73,44 @@ export function resolveAgentProvider(
     apiKey: modelConfig.api_key,
   }
 }
+
+/**
+ * Resolve an ordered fallback chain of providers for an agent.
+ *
+ * Returns [primary, fallback1, fallback2, ...] when the primary model's
+ * config includes a `fallbacks` array. If no fallbacks are configured,
+ * returns a single-element array. Returns an empty array when no match.
+ */
+export function resolveAgentProviderChain(
+  name: string | undefined,
+  subagentType: string | undefined,
+  settings: SettingsJson | null,
+): ProviderOverride[] {
+  const primary = resolveAgentProvider(name, subagentType, settings)
+  if (!primary) return []
+  if (!settings?.agentModels) return [primary]
+
+  const modelConfig = settings.agentModels[primary.model] as
+    | { base_url: string; api_key: string; fallbacks?: string[] }
+    | undefined
+  if (!modelConfig?.fallbacks || modelConfig.fallbacks.length === 0) {
+    return [primary]
+  }
+
+  const chain: ProviderOverride[] = [primary]
+  const seen = new Set([primary.model])
+
+  for (const fallbackModel of modelConfig.fallbacks) {
+    if (seen.has(fallbackModel)) continue
+    const fallbackConfig = settings.agentModels[fallbackModel]
+    if (!fallbackConfig) continue
+    seen.add(fallbackModel)
+    chain.push({
+      model: fallbackModel,
+      baseURL: fallbackConfig.base_url,
+      apiKey: fallbackConfig.api_key,
+    })
+  }
+
+  return chain
+}
