@@ -108,7 +108,7 @@ export function isVsCodeProxy(): boolean {
   try {
     const hostname = new URL(baseUrl).hostname
     return (
-      hostname === 'localhost' &&
+      (hostname === 'localhost' || hostname === '127.0.0.1') &&
       process.env.CLAUDE_CODE_ENTRYPOINT === 'sdk-ts' &&
       process.env.CLAUDECODE === '1'
     )
