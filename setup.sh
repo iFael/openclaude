@@ -7,12 +7,18 @@ echo "========================================="
 echo ""
 
 # Check prerequisites
-for cmd in node npm bun; do
+for cmd in node npm; do
   if ! command -v "$cmd" &>/dev/null; then
     echo "ERROR: '$cmd' not found. Please install it first."
     exit 1
   fi
 done
+
+if ! command -v bun &>/dev/null; then
+  echo "[0/4] bun not found — installing via npm..."
+  npm install -g bun
+  echo ""
+fi
 
 echo "[1/4] Installing dependencies..."
 npm install
