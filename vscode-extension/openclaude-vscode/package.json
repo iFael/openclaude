@@ -2,7 +2,7 @@
   "name": "openclaude-vscode",
   "displayName": "OpenClaude",
   "description": "Practical VS Code companion for OpenClaude with project-aware launch behavior and a real Control Center.",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "publisher": "devnull-bootloader",
   "engines": {
     "vscode": "^1.95.0"

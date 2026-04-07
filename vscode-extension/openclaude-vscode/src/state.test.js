@@ -85,18 +85,14 @@ test('resolveCommandCheckPath leaves bare commands alone', () => {
   assert.equal(resolveCommandCheckPath('openclaude', '/repo'), null);
 });
 
-test('findCommandPath treats shell-like input as a literal executable name', t => {
+test('findCommandPath treats shell-like input as a literal executable name', (t) => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaude-command-'));
   t.after(() => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  const commandName = process.platform === 'win32'
-    ? 'openclaude & whoami'
-    : 'openclaude && whoami';
-  const executableName = process.platform === 'win32'
-    ? `${commandName}.cmd`
-    : commandName;
+  const commandName = process.platform === 'win32' ? 'openclaude & whoami' : 'openclaude && whoami';
+  const executableName = process.platform === 'win32' ? `${commandName}.cmd` : commandName;
   const executablePath = path.join(tempDir, executableName);
 
   fs.writeFileSync(executablePath, process.platform === 'win32' ? '@echo off\r\n' : '#!/bin/sh\n');

@@ -64,15 +64,11 @@ function getRuntimeTone(installed) {
 }
 
 function getProfileTone(profileStatusLabel) {
-  return profileStatusLabel === 'Invalid' || profileStatusLabel === 'Unreadable'
-    ? 'warning'
-    : 'neutral';
+  return profileStatusLabel === 'Invalid' || profileStatusLabel === 'Unreadable' ? 'warning' : 'neutral';
 }
 
 function getProviderTone(providerState) {
-  return providerState?.source === 'shim' || providerState?.source === 'unknown'
-    ? 'warning'
-    : 'neutral';
+  return providerState?.source === 'shim' || providerState?.source === 'unknown' ? 'warning' : 'neutral';
 }
 
 function getProviderDetail(providerState, providerSourceLabel) {
@@ -85,9 +81,7 @@ function getProviderDetail(providerState, providerSourceLabel) {
     case 'profile':
       return [detail, providerSourceLabel].filter(Boolean).join(' · ');
     case 'env':
-      return /^from environment$/i.test(detail)
-        ? detail
-        : [detail, providerSourceLabel].filter(Boolean).join(' · ');
+      return /^from environment$/i.test(detail) ? detail : [detail, providerSourceLabel].filter(Boolean).join(' · ');
     case 'shim':
     case 'unknown':
       return detail;
@@ -102,16 +96,14 @@ function buildControlCenterViewModel(status = {}) {
   const providerDetail = getProviderDetail(status.providerState, status.providerSourceLabel);
   const providerTone = getProviderTone(status.providerState);
   const workspaceSummary = status.workspaceFolder ? getPathTail(status.workspaceFolder) : 'No workspace open';
-  const workspaceDetail = [status.workspaceFolder, status.workspaceSourceLabel]
-    .filter(Boolean)
-    .join(' · ') || 'no workspace open';
+  const workspaceDetail =
+    [status.workspaceFolder, status.workspaceSourceLabel].filter(Boolean).join(' · ') || 'no workspace open';
 
   return {
     header: {
       eyebrow: 'OpenClaude Control Center',
       title: 'Project-aware OpenClaude companion',
-      subtitle:
-        'Useful local status, predictable launch behavior, and quick access to the workflows you actually use.',
+      subtitle: 'Useful local status, predictable launch behavior, and quick access to the workflows you actually use.',
     },
     headerBadges: [
       {

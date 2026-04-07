@@ -52,7 +52,7 @@ function loadExtension() {
       registerCommand: () => ({ dispose() {} }),
       executeCommand: async () => undefined,
     },
-    Uri: { parse: value => value, file: value => value },
+    Uri: { parse: (value) => value, file: (value) => value },
     ViewColumn: { Active: 1 },
   }));
   return require('./extension');
@@ -220,8 +220,14 @@ test('renderControlCenterHtml makes shared workspace-root launches explicit for 
     { nonce: 'test-nonce', platform: 'linux' },
   );
 
-  assert.match(html, /Project-aware launch is anchored to the workspace root by the relative command · \/workspace\/openclaude/);
-  assert.match(html, /Same workspace-root target as Launch OpenClaude because the relative command resolves from the workspace root · \/workspace\/openclaude/);
+  assert.match(
+    html,
+    /Project-aware launch is anchored to the workspace root by the relative command · \/workspace\/openclaude/,
+  );
+  assert.match(
+    html,
+    /Same workspace-root target as Launch OpenClaude because the relative command resolves from the workspace root · \/workspace\/openclaude/,
+  );
 });
 
 test('renderControlCenterHtml escapes hostile text and title values', () => {

@@ -104,8 +104,8 @@ test('buildControlCenterViewModel keeps header badges and summary cards non-redu
   const { buildControlCenterViewModel } = loadPresentation();
 
   const viewModel = buildControlCenterViewModel(createStatus());
-  const headerKeys = new Set(viewModel.headerBadges.map(badge => badge.key));
-  const summaryKeys = new Set(viewModel.summaryCards.map(card => card.key));
+  const headerKeys = new Set(viewModel.headerBadges.map((badge) => badge.key));
+  const summaryKeys = new Set(viewModel.summaryCards.map((card) => card.key));
 
   assert.deepEqual([...headerKeys].sort(), ['profileStatus', 'provider', 'runtime']);
   assert.deepEqual([...summaryKeys].sort(), ['launchCommand', 'launchCwd', 'workspace']);
@@ -118,16 +118,18 @@ test('buildControlCenterViewModel keeps header badges and summary cards non-redu
 test('buildControlCenterViewModel uses stable semantic tones for badges and actions', () => {
   const { buildControlCenterViewModel } = loadPresentation();
 
-  const viewModel = buildControlCenterViewModel(createStatus({
-    installed: false,
-    profileStatusLabel: 'Invalid',
-    providerState: {
-      label: 'OpenAI-compatible (provider unknown)',
-      detail: 'launch shim enabled',
-      source: 'shim',
-    },
-    providerSourceLabel: 'launch setting',
-  }));
+  const viewModel = buildControlCenterViewModel(
+    createStatus({
+      installed: false,
+      profileStatusLabel: 'Invalid',
+      providerState: {
+        label: 'OpenAI-compatible (provider unknown)',
+        detail: 'launch shim enabled',
+        source: 'shim',
+      },
+      providerSourceLabel: 'launch setting',
+    }),
+  );
 
   assert.deepEqual(viewModel.headerBadges, [
     {
@@ -205,15 +207,18 @@ test('buildControlCenterViewModel keeps launch command only in summary cards', (
 
   const viewModel = buildControlCenterViewModel(createStatus());
 
-  assert.deepEqual(viewModel.summaryCards.find(card => card.key === 'launchCommand'), {
-    key: 'launchCommand',
-    label: 'Launch command',
-    value: 'openclaude --project-aware',
-    detail: 'Integrated terminal: OpenClaude',
-  });
+  assert.deepEqual(
+    viewModel.summaryCards.find((card) => card.key === 'launchCommand'),
+    {
+      key: 'launchCommand',
+      label: 'Launch command',
+      value: 'openclaude --project-aware',
+      detail: 'Integrated terminal: OpenClaude',
+    },
+  );
 
   assert.equal(
-    viewModel.detailSections.some(section => section.rows.some(row => row.key === 'launchCommand')),
+    viewModel.detailSections.some((section) => section.rows.some((row) => row.key === 'launchCommand')),
     false,
   );
 });
@@ -221,64 +226,79 @@ test('buildControlCenterViewModel keeps launch command only in summary cards', (
 test('buildControlCenterViewModel keeps env-backed provider detail non-redundant', () => {
   const { buildControlCenterViewModel } = loadPresentation();
 
-  const viewModel = buildControlCenterViewModel(createStatus({
-    providerState: {
-      label: 'Gemini',
-      detail: 'from environment',
-      source: 'env',
-    },
-    providerSourceLabel: 'environment',
-  }));
+  const viewModel = buildControlCenterViewModel(
+    createStatus({
+      providerState: {
+        label: 'Gemini',
+        detail: 'from environment',
+        source: 'env',
+      },
+      providerSourceLabel: 'environment',
+    }),
+  );
 
-  assert.deepEqual(viewModel.detailSections[1].rows.find(row => row.key === 'provider'), {
-    key: 'provider',
-    label: 'Detected provider',
-    summary: 'Gemini',
-    detail: 'from environment',
-    tone: 'neutral',
-  });
+  assert.deepEqual(
+    viewModel.detailSections[1].rows.find((row) => row.key === 'provider'),
+    {
+      key: 'provider',
+      label: 'Detected provider',
+      summary: 'Gemini',
+      detail: 'from environment',
+      tone: 'neutral',
+    },
+  );
 });
 
 test('buildControlCenterViewModel keeps shim-backed provider detail honest', () => {
   const { buildControlCenterViewModel } = loadPresentation();
 
-  const viewModel = buildControlCenterViewModel(createStatus({
-    providerState: {
-      label: 'OpenAI-compatible (provider unknown)',
-      detail: 'launch shim enabled',
-      source: 'shim',
-    },
-    providerSourceLabel: 'launch setting',
-  }));
+  const viewModel = buildControlCenterViewModel(
+    createStatus({
+      providerState: {
+        label: 'OpenAI-compatible (provider unknown)',
+        detail: 'launch shim enabled',
+        source: 'shim',
+      },
+      providerSourceLabel: 'launch setting',
+    }),
+  );
 
-  assert.deepEqual(viewModel.detailSections[1].rows.find(row => row.key === 'provider'), {
-    key: 'provider',
-    label: 'Detected provider',
-    summary: 'OpenAI-compatible (provider unknown)',
-    detail: 'launch shim enabled',
-    tone: 'warning',
-  });
+  assert.deepEqual(
+    viewModel.detailSections[1].rows.find((row) => row.key === 'provider'),
+    {
+      key: 'provider',
+      label: 'Detected provider',
+      summary: 'OpenAI-compatible (provider unknown)',
+      detail: 'launch shim enabled',
+      tone: 'warning',
+    },
+  );
 });
 
 test('buildControlCenterViewModel keeps unknown provider detail honest', () => {
   const { buildControlCenterViewModel } = loadPresentation();
 
-  const viewModel = buildControlCenterViewModel(createStatus({
-    providerState: {
-      label: 'Unknown',
-      detail: 'no saved profile or provider env detected',
-      source: 'unknown',
-    },
-    providerSourceLabel: 'unknown',
-  }));
+  const viewModel = buildControlCenterViewModel(
+    createStatus({
+      providerState: {
+        label: 'Unknown',
+        detail: 'no saved profile or provider env detected',
+        source: 'unknown',
+      },
+      providerSourceLabel: 'unknown',
+    }),
+  );
 
-  assert.deepEqual(viewModel.detailSections[1].rows.find(row => row.key === 'provider'), {
-    key: 'provider',
-    label: 'Detected provider',
-    summary: 'Unknown',
-    detail: 'no saved profile or provider env detected',
-    tone: 'warning',
-  });
+  assert.deepEqual(
+    viewModel.detailSections[1].rows.find((row) => row.key === 'provider'),
+    {
+      key: 'provider',
+      label: 'Detected provider',
+      summary: 'Unknown',
+      detail: 'no saved profile or provider env detected',
+      tone: 'warning',
+    },
+  );
 });
 
 test('buildControlCenterViewModel carries forward the existing action model', () => {

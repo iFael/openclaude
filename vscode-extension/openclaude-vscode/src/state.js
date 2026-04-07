@@ -1,13 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const SAVED_PROFILES = new Set([
-  'openai',
-  'ollama',
-  'codex',
-  'gemini',
-  'atomic-chat',
-]);
+const OLLAMA_DEFAULT_PORT = '11434';
+const LMSTUDIO_DEFAULT_PORT = '1234';
+
+const SAVED_PROFILES = new Set(['openai', 'ollama', 'codex', 'gemini', 'atomic-chat']);
 
 const CODEX_ALIAS_MODELS = new Set([
   'codexplan',
@@ -42,9 +39,7 @@ function chooseLaunchWorkspace({ activeWorkspacePath, workspacePaths }) {
     return { workspacePath: activePath, source: 'active-workspace' };
   }
 
-  const firstWorkspacePath = Array.isArray(workspacePaths)
-    ? asNonEmptyString(workspacePaths[0])
-    : null;
+  const firstWorkspacePath = Array.isArray(workspacePaths) ? asNonEmptyString(workspacePaths[0]) : null;
 
   if (firstWorkspacePath) {
     return { workspacePath: firstWorkspacePath, source: 'first-workspace' };
@@ -58,9 +53,7 @@ function sanitizeProfileEnv(env) {
     return {};
   }
 
-  return Object.fromEntries(
-    Object.entries(env).filter(([, value]) => typeof value === 'string' && value.trim()),
-  );
+  return Object.fromEntries(Object.entries(env).filter(([, value]) => typeof value === 'string' && value.trim()));
 }
 
 function parseProfileFile(raw) {
@@ -84,7 +77,8 @@ function parseProfileFile(raw) {
       env: sanitizeProfileEnv(parsed.env),
       createdAt: asNonEmptyString(parsed.createdAt),
     };
-  } catch {
+  } catch (err) {
+    console.debug('[openclaude] parseProfileFile failed:', err?.message || err);
     return null;
   }
 }
@@ -104,7 +98,8 @@ function isLocalBaseUrl(baseUrl) {
       hostname === '::1' ||
       hostname.endsWith('.local')
     );
-  } catch {
+  } catch (err) {
+    console.debug('[openclaude] isLocalBaseUrl parse failed:', err?.message || err);
     return false;
   }
 }
@@ -117,7 +112,8 @@ function getHostname(baseUrl) {
 
   try {
     return new URL(normalized).hostname.toLowerCase();
-  } catch {
+  } catch (err) {
+    console.debug('[openclaude] getHostname parse failed:', err?.message || err);
     return null;
   }
 }
@@ -136,9 +132,7 @@ function resolveCommandCheckPath(command, workspacePath) {
     return normalized;
   }
 
-  return workspacePath
-    ? path.resolve(workspacePath, normalized)
-    : path.resolve(normalized);
+  return workspacePath ? path.resolve(workspacePath, normalized) : path.resolve(normalized);
 }
 
 function getEnvValue(env, key) {
@@ -146,7 +140,7 @@ function getEnvValue(env, key) {
     return '';
   }
 
-  const matchedKey = Object.keys(env).find(candidate => candidate.toUpperCase() === key);
+  const matchedKey = Object.keys(env).find((candidate) => candidate.toUpperCase() === key);
   return matchedKey ? env[matchedKey] : '';
 }
 
@@ -186,14 +180,15 @@ function findCommandPath(command, options = {}) {
 
   const pathExtValue = getEnvValue(env, 'PATHEXT');
   const hasExplicitExtension = Boolean(path.extname(normalized));
-  const extensions = platform === 'win32'
-    ? (hasExplicitExtension
+  const extensions =
+    platform === 'win32'
+      ? hasExplicitExtension
         ? ['']
         : (pathExtValue || '.COM;.EXE;.BAT;.CMD')
             .split(';')
-            .map(extension => extension.trim())
-            .filter(Boolean))
-    : [''];
+            .map((extension) => extension.trim())
+            .filter(Boolean)
+      : [''];
 
   for (const directory of pathValue.split(path.delimiter)) {
     const baseDirectory = asNonEmptyString(directory);
@@ -221,12 +216,9 @@ function isPathInsideWorkspace(filePath, workspacePath) {
 
   const resolvedFilePath = path.resolve(normalizedFilePath);
   const resolvedWorkspacePath = path.resolve(normalizedWorkspacePath);
-  const comparableFilePath = process.platform === 'win32'
-    ? resolvedFilePath.toLowerCase()
-    : resolvedFilePath;
-  const comparableWorkspacePath = process.platform === 'win32'
-    ? resolvedWorkspacePath.toLowerCase()
-    : resolvedWorkspacePath;
+  const comparableFilePath = process.platform === 'win32' ? resolvedFilePath.toLowerCase() : resolvedFilePath;
+  const comparableWorkspacePath =
+    process.platform === 'win32' ? resolvedWorkspacePath.toLowerCase() : resolvedWorkspacePath;
   const relativePath = path.relative(comparableWorkspacePath, comparableFilePath);
 
   return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
@@ -260,11 +252,21 @@ function getOpenAICompatibleLabel(baseUrl, model) {
     return 'Codex';
   }
 
-  if (/localhost:11434|127\.0\.0\.1:11434|0\.0\.0\.0:11434/i.test(normalizedBaseUrl)) {
+  if (
+    new RegExp(
+      `localhost:${OLLAMA_DEFAULT_PORT}|127\\.0\\.0\\.1:${OLLAMA_DEFAULT_PORT}|0\\.0\\.0\\.0:${OLLAMA_DEFAULT_PORT}`,
+      'i',
+    ).test(normalizedBaseUrl)
+  ) {
     return 'Ollama';
   }
 
-  if (/localhost:1234|127\.0\.0\.1:1234|0\.0\.0\.0:1234/i.test(normalizedBaseUrl)) {
+  if (
+    new RegExp(
+      `localhost:${LMSTUDIO_DEFAULT_PORT}|127\\.0\\.0\\.1:${LMSTUDIO_DEFAULT_PORT}|0\\.0\\.0\\.0:${LMSTUDIO_DEFAULT_PORT}`,
+      'i',
+    ).test(normalizedBaseUrl)
+  ) {
     return 'LM Studio';
   }
 
@@ -379,18 +381,10 @@ function describeProviderState({ shimEnabled, env, profile }) {
   }
 
   if (shimEnabled) {
-    return buildProviderState(
-      'OpenAI-compatible (provider unknown)',
-      'launch shim enabled',
-      'shim',
-    );
+    return buildProviderState('OpenAI-compatible (provider unknown)', 'launch shim enabled', 'shim');
   }
 
-  return buildProviderState(
-    'Unknown',
-    'no saved profile or provider env detected',
-    'unknown',
-  );
+  return buildProviderState('Unknown', 'no saved profile or provider env detected', 'unknown');
 }
 
 module.exports = {
