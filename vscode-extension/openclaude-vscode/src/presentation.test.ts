@@ -280,3 +280,51 @@ test('buildControlCenterViewModel carries forward the existing action model', ()
 
   assert.deepEqual(viewModel.actions, buildActionModel(status));
 });
+
+// ---------------------------------------------------------------------------
+// truncateMiddle — uncovered branches (maxLength <= 3, general truncation)
+// ---------------------------------------------------------------------------
+
+test('truncateMiddle falls back to general truncation when basename does not fit', () => {
+  // basename = 'abcdefghijklmnop' (16 chars), 16 + 4 = 20 > 8
+  // available = 8 - 3 = 5, startLength = 3, endLength = 2
+  assert.equal(truncateMiddle('abcdefghijklmnop', 8), 'abc...op');
+});
+
+test('truncateMiddle returns dots when maxLength is 3 or less', () => {
+  assert.equal(truncateMiddle('abcdefghij', 3), '...');
+  assert.equal(truncateMiddle('abcdefghij', 2), '..');
+  assert.equal(truncateMiddle('abcdefghij', 1), '.');
+});
+
+test('truncateMiddle returns empty string when maxLength is 0', () => {
+  assert.equal(truncateMiddle('abcdefghij', 0), '');
+});
+
+// ---------------------------------------------------------------------------
+// buildControlCenterViewModel — uncovered getProviderDetail branch (empty detail)
+// ---------------------------------------------------------------------------
+
+test('buildControlCenterViewModel falls back to providerSourceLabel when provider detail is absent', () => {
+  const viewModel = buildControlCenterViewModel(
+    createStatus({
+      providerState: { label: 'CustomProvider', source: 'env' },
+      providerSourceLabel: 'custom source',
+    }),
+  );
+
+  const providerRow = viewModel.detailSections[1].rows.find((row) => row.key === 'provider');
+  assert.equal(providerRow?.detail, 'custom source');
+});
+
+test('buildControlCenterViewModel returns empty provider detail when both detail and source label are absent', () => {
+  const viewModel = buildControlCenterViewModel(
+    createStatus({
+      providerState: { label: 'SomeProvider' },
+      providerSourceLabel: undefined,
+    }),
+  );
+
+  const providerRow = viewModel.detailSections[1].rows.find((row) => row.key === 'provider');
+  assert.equal(providerRow?.detail, '');
+});

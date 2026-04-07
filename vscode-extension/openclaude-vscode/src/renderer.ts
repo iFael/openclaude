@@ -776,4 +776,4 @@ function renderErrorHtml(error: unknown): string {
 </html>`;
 }
 
-export { escapeHtml, renderControlCenterHtml, renderErrorHtml };
+export { escapeHtml, getToneClass, renderControlCenterHtml, renderErrorHtml };

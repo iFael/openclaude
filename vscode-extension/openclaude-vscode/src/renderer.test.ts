@@ -1,6 +1,6 @@
 import { test } from 'bun:test';
 import assert from 'node:assert/strict';
-import { escapeHtml, renderControlCenterHtml, renderErrorHtml } from './renderer';
+import { escapeHtml, getToneClass, renderControlCenterHtml, renderErrorHtml } from './renderer';
 
 // ---------------------------------------------------------------------------
 // escapeHtml
@@ -194,4 +194,12 @@ test('renderControlCenterHtml workspace-root action shows shared-target reason',
 test('renderControlCenterHtml output includes the .sunset-gradient CSS class', () => {
   const html = renderControlCenterHtml(createMinimalStatus());
   assert.ok(html.includes('.sunset-gradient'));
+});
+
+// ---------------------------------------------------------------------------
+// getToneClass — uncovered 'accent' branch
+// ---------------------------------------------------------------------------
+
+test('getToneClass returns tone-accent for accent tone', () => {
+  assert.equal(getToneClass('accent'), 'tone-accent');
 });

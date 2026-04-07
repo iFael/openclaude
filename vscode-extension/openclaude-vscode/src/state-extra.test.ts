@@ -1,7 +1,14 @@
 import { test } from 'bun:test';
 import assert from 'node:assert/strict';
 
-import { chooseLaunchWorkspace, describeProviderState, isPathInsideWorkspace, parseProfileFile } from './state';
+import {
+  chooseLaunchWorkspace,
+  describeProviderState,
+  findCommandPath,
+  isPathInsideWorkspace,
+  parseProfileFile,
+  resolveCommandCheckPath,
+} from './state';
 
 // ---------------------------------------------------------------------------
 // parseProfileFile — uncovered branches
@@ -352,4 +359,165 @@ test('chooseLaunchWorkspace returns none when workspacePaths contains only empty
     workspacePath: null,
     source: 'none',
   });
+});
+
+// ---------------------------------------------------------------------------
+// resolveCommandCheckPath — uncovered branches
+// ---------------------------------------------------------------------------
+
+test('resolveCommandCheckPath returns null for null command', () => {
+  assert.equal(resolveCommandCheckPath(null), null);
+});
+
+test('resolveCommandCheckPath returns null for empty string command', () => {
+  assert.equal(resolveCommandCheckPath(''), null);
+});
+
+test('resolveCommandCheckPath returns absolute path as-is', () => {
+  if (process.platform === 'win32') {
+    assert.equal(resolveCommandCheckPath('C:\\absolute\\path'), 'C:\\absolute\\path');
+  } else {
+    assert.equal(resolveCommandCheckPath('/absolute/path'), '/absolute/path');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// findCommandPath — uncovered branches
+// ---------------------------------------------------------------------------
+
+test('findCommandPath returns null for null command', () => {
+  assert.equal(findCommandPath(null), null);
+});
+
+test('findCommandPath returns null for empty string command', () => {
+  assert.equal(findCommandPath(''), null);
+});
+
+test('findCommandPath returns null for relative path without cwd', () => {
+  assert.equal(findCommandPath('./relative/cmd'), null);
+});
+
+test('findCommandPath returns null for relative path with cwd when file does not exist', () => {
+  const result = findCommandPath('./nonexistent-binary-xyz', {
+    cwd: process.platform === 'win32' ? 'C:\\Windows' : '/tmp',
+  });
+  assert.equal(result, null);
+});
+
+test('findCommandPath returns null when PATH env var is empty', () => {
+  assert.equal(findCommandPath('somecommand', { env: {} }), null);
+});
+
+test('findCommandPath returns null when command is not found in any PATH directory', () => {
+  const pathDir = process.platform === 'win32' ? 'C:\\Windows\\System32' : '/usr/bin';
+  assert.equal(
+    findCommandPath('reallynonexistent123456xyz', {
+      env: { PATH: pathDir },
+      platform: process.platform,
+    }),
+    null,
+  );
+});
+
+test('findCommandPath finds an executable on PATH (platform-specific)', () => {
+  if (process.platform === 'win32') {
+    const result = findCommandPath('cmd', {
+      env: { PATH: 'C:\\Windows\\System32' },
+      platform: 'win32',
+    });
+    assert.ok(result, 'should find cmd on Windows');
+    assert.ok(result!.toLowerCase().includes('cmd'), 'found path should contain cmd');
+  } else {
+    const result = findCommandPath('sh', {
+      env: { PATH: '/bin:/usr/bin' },
+      platform: 'linux',
+    });
+    assert.ok(result, 'should find sh on unix');
+    assert.ok(result!.includes('sh'), 'found path should contain sh');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// describeProviderState — remaining uncovered branches
+// ---------------------------------------------------------------------------
+
+test('describeProviderState detects Bedrock from environment', () => {
+  assert.deepEqual(
+    describeProviderState({
+      shimEnabled: false,
+      env: { CLAUDE_CODE_USE_BEDROCK: '1' },
+      profile: null,
+    }),
+    { label: 'Bedrock', detail: 'from environment', source: 'env' },
+  );
+});
+
+test('describeProviderState detects Azure OpenAI from URL', () => {
+  assert.deepEqual(
+    describeProviderState({
+      shimEnabled: false,
+      env: {
+        CLAUDE_CODE_USE_OPENAI: '1',
+        OPENAI_BASE_URL: 'https://myendpoint.azure.com/openai/v1',
+        OPENAI_MODEL: 'gpt-4-turbo',
+      },
+      profile: null,
+    }),
+    { label: 'Azure OpenAI', detail: 'gpt-4-turbo', source: 'env' },
+  );
+});
+
+test('describeProviderState detects Local OpenAI-compatible for localhost on non-standard port', () => {
+  assert.deepEqual(
+    describeProviderState({
+      shimEnabled: false,
+      env: {
+        CLAUDE_CODE_USE_OPENAI: '1',
+        OPENAI_BASE_URL: 'http://localhost:5000/v1',
+        OPENAI_MODEL: 'custom-model',
+      },
+      profile: null,
+    }),
+    { label: 'Local OpenAI-compatible', detail: 'custom-model', source: 'env' },
+  );
+});
+
+test('describeProviderState returns OpenAI-compatible for unknown remote host', () => {
+  assert.deepEqual(
+    describeProviderState({
+      shimEnabled: false,
+      env: {
+        CLAUDE_CODE_USE_OPENAI: '1',
+        OPENAI_BASE_URL: 'https://custom-proxy.example.com/v1',
+        OPENAI_MODEL: 'custom-model',
+      },
+      profile: null,
+    }),
+    { label: 'OpenAI-compatible', detail: 'custom-model', source: 'env' },
+  );
+});
+
+test('describeProviderState falls back to OpenAI when no URL and no model are set', () => {
+  assert.deepEqual(
+    describeProviderState({
+      shimEnabled: false,
+      env: { CLAUDE_CODE_USE_OPENAI: '1' },
+      profile: null,
+    }),
+    { label: 'OpenAI', detail: 'OpenAI-compatible runtime', source: 'env' },
+  );
+});
+
+test('describeProviderState handles invalid URL gracefully via getHostname and isLocalBaseUrl catch blocks', () => {
+  assert.deepEqual(
+    describeProviderState({
+      shimEnabled: false,
+      env: {
+        CLAUDE_CODE_USE_OPENAI: '1',
+        OPENAI_BASE_URL: 'not-a-valid-url',
+      },
+      profile: null,
+    }),
+    { label: 'OpenAI-compatible', detail: 'not-a-valid-url', source: 'env' },
+  );
 });

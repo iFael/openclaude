@@ -600,6 +600,41 @@ function activate(context: vscode.ExtensionContext): void {
 
 function deactivate(): void {}
 
+export const _internal = {
+  isCommandAvailable,
+  getWorkspacePaths,
+  getActiveWorkspacePath,
+  getActiveFilePath,
+  resolveLaunchWorkspace,
+  collectControlCenterState,
+  launchOpenClaude,
+  openWorkspaceProfile,
+  readCredentialsFile,
+  verifySdkProxy,
+  syncSdkProxyCredentials,
+  get _credPath() {
+    return _credPath;
+  },
+  get _lastBaseUrl() {
+    return _lastBaseUrl;
+  },
+  set _lastBaseUrl(v: string) {
+    _lastBaseUrl = v;
+  },
+  get _lastApiKey() {
+    return _lastApiKey;
+  },
+  set _lastApiKey(v: string) {
+    _lastApiKey = v;
+  },
+  get _envCollection() {
+    return _envCollection;
+  },
+  set _envCollection(v: vscode.GlobalEnvironmentVariableCollection | null) {
+    _envCollection = v;
+  },
+};
+
 export {
   activate,
   deactivate,
