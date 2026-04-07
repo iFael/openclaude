@@ -440,7 +440,9 @@ test('cov: GET /v1/models', async () => {
   mockModelList = [createMockModel()];
   const p = await startProxy();
   try {
-    const res = await fetch(`http://127.0.0.1:${p.port}/v1/models`);
+    const res = await fetch(`http://127.0.0.1:${p.port}/v1/models`, {
+      headers: { 'x-api-key': p.apiKey },
+    });
     const json = (await res.json()) as any;
     assert.equal(json.count, 1);
     assert.equal(json.models[0].id, 'claude-sonnet-4-20250514');
@@ -844,7 +846,9 @@ test('cov: selectClaudeModels catches errors and returns empty', async () => {
   try {
     const p = await startProxy();
     try {
-      const res = await fetch(`http://127.0.0.1:${p.port}/v1/models`);
+      const res = await fetch(`http://127.0.0.1:${p.port}/v1/models`, {
+        headers: { 'x-api-key': p.apiKey },
+      });
       const json = (await res.json()) as any;
       assert.equal(json.count, 0);
     } finally {
@@ -861,7 +865,9 @@ test('cov: selectClaudeModels returns all when no Claude models', async () => {
   ];
   const p = await startProxy();
   try {
-    const res = await fetch(`http://127.0.0.1:${p.port}/v1/models`);
+    const res = await fetch(`http://127.0.0.1:${p.port}/v1/models`, {
+      headers: { 'x-api-key': p.apiKey },
+    });
     const json = (await res.json()) as any;
     assert.equal(json.count, 1);
     assert.equal(json.models[0].id, 'gpt-4');
@@ -884,7 +890,9 @@ test('cov: selectClaudeModels filters Claude models from mixed set', async () =>
   ];
   const p = await startProxy();
   try {
-    const res = await fetch(`http://127.0.0.1:${p.port}/v1/models`);
+    const res = await fetch(`http://127.0.0.1:${p.port}/v1/models`, {
+      headers: { 'x-api-key': p.apiKey },
+    });
     const json = (await res.json()) as any;
     assert.equal(json.count, 1);
     assert.equal(json.models[0].id, 'claude-sonnet-4');
@@ -901,7 +909,9 @@ test('cov: onDidChangeChatModels callback re-discovers models', async () => {
     assert.ok(modelChangeCallback, 'callback should have been captured');
     await modelChangeCallback!();
     // Verify the proxy still serves the models after re-discovery
-    const res = await fetch(`http://127.0.0.1:${p.port}/v1/models`);
+    const res = await fetch(`http://127.0.0.1:${p.port}/v1/models`, {
+      headers: { 'x-api-key': p.apiKey },
+    });
     const json = (await res.json()) as any;
     assert.equal(json.count, 1);
   } finally {

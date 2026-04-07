@@ -89,13 +89,32 @@ async function main(): Promise<void> {
         '://localhost',
         '://127.0.0.1',
       );
+      // Validate loopback — reject if SDK proxy points to non-local address
+      if (process.env.ANTHROPIC_BASE_URL) {
+        try {
+          const proxyUrl = new URL(process.env.ANTHROPIC_BASE_URL);
+          const loopback = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
+          if (!loopback.has(proxyUrl.hostname.toLowerCase())) {
+            // Non-loopback SDK proxy URL — clear to prevent data exfiltration
+            delete process.env.ANTHROPIC_BASE_URL;
+            delete process.env.ANTHROPIC_API_KEY;
+            delete process.env.CLAUDECODE;
+            delete process.env.CLAUDE_CODE_ENTRYPOINT;
+          }
+        } catch {
+          // Invalid URL — clear
+          delete process.env.ANTHROPIC_BASE_URL;
+        }
+      }
     } else {
       // Fallback: try the credentials file (for terminals outside VS Code)
       const credFile = join(homedir(), '.claude', 'sdk-proxy-credentials.json');
       try {
         const raw = readFs(credFile, 'utf-8');
         const creds = JSON.parse(raw);
-        if (creds.baseUrl && creds.apiKey) {
+        const credUrl = new URL(creds.baseUrl);
+        const isLocal = ['127.0.0.1', 'localhost', '::1', '[::1]'].includes(credUrl.hostname.toLowerCase());
+        if (isLocal && creds.apiKey && String(creds.apiKey).startsWith('vscode-lm-')) {
           process.env.ANTHROPIC_BASE_URL = creds.baseUrl.replace(
             '://localhost',
             '://127.0.0.1',

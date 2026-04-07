@@ -107,6 +107,12 @@
       }
     ]
   },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "OpenClaude reads workspace settings that could execute terminal commands. Only use in trusted workspaces."
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "watch": "tsc -p tsconfig.json --watch",

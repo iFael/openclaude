@@ -8,6 +8,7 @@ import * as crypto from 'crypto';
 import * as http from 'http';
 import type { AddressInfo } from 'net';
 import * as vscode from 'vscode';
+import { isValidHostHeader, timingSafeEqual } from './security';
 
 // ---------------------------------------------------------------------------
 // Interfaces
@@ -94,6 +95,18 @@ export async function startProxy(): Promise<ProxyInstance> {
     // Parse pathname once, stripping query strings (e.g. ?beta=true)
     const pathname: string = (req.url || '').split('?')[0];
 
+    // --- DNS rebinding protection ---
+    if (!isValidHostHeader(req.headers.host)) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          type: 'error',
+          error: { type: 'forbidden', message: 'Invalid Host header' },
+        }),
+      );
+      return;
+    }
+
     // --- Health check ---
     if (req.method === 'GET' && (pathname === '/' || pathname === '')) {
       res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -101,7 +114,21 @@ export async function startProxy(): Promise<ProxyInstance> {
       return;
     }
 
-    // --- Model diagnostics (no auth required) ---
+    // --- Auth check ---
+    const incomingKey: string =
+      (req.headers['x-api-key'] as string) || ((req.headers.authorization as string) || '').replace(/^Bearer\s+/i, '');
+    if (!incomingKey || !timingSafeEqual(incomingKey, apiKey)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          type: 'error',
+          error: { type: 'authentication_error', message: 'Invalid API key' },
+        }),
+      );
+      return;
+    }
+
+    // --- Model listing (authenticated) ---
     if (req.method === 'GET' && pathname === '/v1/models') {
       const models = activeModels.map((m: vscode.LanguageModelChat) => ({
         id: m.id,
@@ -113,20 +140,6 @@ export async function startProxy(): Promise<ProxyInstance> {
       }));
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ models, count: models.length }));
-      return;
-    }
-
-    // --- Auth check ---
-    const incomingKey: string =
-      (req.headers['x-api-key'] as string) || ((req.headers.authorization as string) || '').replace(/^Bearer\s+/i, '');
-    if (incomingKey !== apiKey) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(
-        JSON.stringify({
-          type: 'error',
-          error: { type: 'authentication_error', message: 'Invalid API key' },
-        }),
-      );
       return;
     }
 
@@ -186,6 +199,10 @@ export async function startProxy(): Promise<ProxyInstance> {
   });
 
   return new Promise<ProxyInstance>((resolve, reject) => {
+    server.maxConnections = 10;
+    server.headersTimeout = 10000;
+    server.requestTimeout = 30000;
+
     server.listen(0, '127.0.0.1', () => {
       const port: number = (server.address() as AddressInfo).port;
       resolve({
@@ -665,21 +682,35 @@ const MAX_BODY_BYTES: number = 1024 * 1024; // 1 MB — generous for any Anthrop
 const CHARS_PER_TOKEN: number = 4;
 const TOKEN_OVERHEAD_MULTIPLIER: number = 1.1;
 
+const REQUEST_BODY_TIMEOUT_MS: number = 30000;
+
 function readBody(req: http.IncomingMessage): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     let body: string = '';
     let bytes: number = 0;
-    req.on('data', (chunk: Buffer) => {
+    const timer = setTimeout(() => {
+      req.destroy();
+      reject(new Error('Request body timeout'));
+    }, REQUEST_BODY_TIMEOUT_MS);
+
+    req.on('data', (chunk: Buffer | string) => {
       bytes += chunk.length;
       if (bytes > MAX_BODY_BYTES) {
+        clearTimeout(timer);
         req.destroy();
         reject(new Error(`Request body exceeds ${MAX_BODY_BYTES} bytes`));
         return;
       }
       body += chunk;
     });
-    req.on('end', () => resolve(body));
-    req.on('error', reject);
+    req.on('end', () => {
+      clearTimeout(timer);
+      resolve(body);
+    });
+    req.on('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
   });
 }
 

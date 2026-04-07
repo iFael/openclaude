@@ -1,9 +1,11 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as http from 'http';
+import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { renderControlCenterHtml, renderErrorHtml } from './renderer';
+import { isLoopbackUrl, readFileSecurely, sanitizeLaunchCommand } from './security';
 import {
   chooseLaunchWorkspace,
   describeProviderState,
@@ -345,9 +347,17 @@ async function launchOpenClaude(options: LaunchOptions = {}): Promise<void> {
     terminalOptions.cwd = targetCwd;
   }
 
+  const safeLaunchCommand = sanitizeLaunchCommand(launchCommand);
+  if (!safeLaunchCommand) {
+    await vscode.window.showErrorMessage(
+      `Launch command contains unsafe characters: ${launchCommand}. Remove shell operators like && || ; | etc.`,
+    );
+    return;
+  }
+
   const terminal = vscode.window.createTerminal(terminalOptions);
   terminal.show(true);
-  terminal.sendText(launchCommand, true);
+  terminal.sendText(safeLaunchCommand, true);
 }
 
 async function openWorkspaceProfile(): Promise<void> {
@@ -451,21 +461,21 @@ let _lastBaseUrl = '';
 let _lastApiKey = '';
 let _envCollection: vscode.GlobalEnvironmentVariableCollection | null = null;
 
-const _credPath = path.join(process.env.HOME || process.env.USERPROFILE || '', '.claude', 'sdk-proxy-credentials.json');
+const _credPath = path.join(os.homedir(), '.claude', 'sdk-proxy-credentials.json');
 
 /**
  * Read proxy credentials from the file written by the SessionStart hook.
  */
 function readCredentialsFile(): { baseUrl: string; apiKey: string } | null {
   try {
-    if (!fs.existsSync(_credPath)) return null;
-    const raw = fs.readFileSync(_credPath, 'utf8');
+    const raw = readFileSecurely(_credPath);
+    if (!raw) return null;
     const creds = JSON.parse(raw);
     if (creds.baseUrl && creds.apiKey && String(creds.apiKey).startsWith('vscode-lm-')) {
       return { baseUrl: creds.baseUrl, apiKey: creds.apiKey };
     }
-  } catch (err: unknown) {
-    console.debug('[openclaude] readCredentialsFile failed:', err instanceof Error ? err.message : err);
+  } catch (err) {
+    console.debug('[openclaude] readCredentialsFile failed:', (err as Error)?.message || err);
   }
   return null;
 }
@@ -474,6 +484,11 @@ function readCredentialsFile(): { baseUrl: string; apiKey: string } | null {
  * Verify that the proxy is alive by hitting GET /.
  */
 function verifySdkProxy(baseUrl: string): Promise<boolean> {
+  if (!isLoopbackUrl(baseUrl)) {
+    console.debug('[openclaude] Rejected non-loopback baseUrl:', baseUrl);
+    return Promise.resolve(false);
+  }
+
   return new Promise((resolve) => {
     const url = baseUrl.replace('://localhost', '://127.0.0.1');
     const req = http.get(url, { timeout: PROXY_HEALTH_CHECK_TIMEOUT_MS }, (res) => {
@@ -499,6 +514,11 @@ async function syncSdkProxyCredentials(): Promise<void> {
   const creds = readCredentialsFile();
 
   if (creds) {
+    if (!isLoopbackUrl(creds.baseUrl)) {
+      console.debug('[openclaude] Rejected non-loopback baseUrl:', creds.baseUrl);
+      return; // Don't redirect traffic to external servers
+    }
+
     const baseUrl = creds.baseUrl.replace('://localhost', '://127.0.0.1');
     const apiKey = creds.apiKey;
 
@@ -598,7 +618,14 @@ function activate(context: vscode.ExtensionContext): void {
   );
 }
 
-function deactivate(): void {}
+function deactivate(): void {
+  if (_envCollection) {
+    _envCollection.delete('ANTHROPIC_BASE_URL');
+    _envCollection.delete('ANTHROPIC_API_KEY');
+    _envCollection.delete('CLAUDECODE');
+    _envCollection.delete('CLAUDE_CODE_ENTRYPOINT');
+  }
+}
 
 export const _internal = {
   isCommandAvailable,
