@@ -1097,28 +1097,45 @@ function syncProxyCredentials(envCollection) {
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
-  // --- Own LM API proxy (Alternative 2) ---
-  // Start a local HTTP proxy backed by vscode.lm — no dependency on
-  // Claude Code session or SessionStart hooks.
+  // --- Own LM API proxy ---
+  // Start a local HTTP proxy backed by vscode.lm. This is the primary
+  // integration path: no dependency on Claude Code sessions or hooks.
+  //
+  // IMPORTANT: Do NOT inject env vars until the proxy is actually running.
+  // environmentVariableCollection is persistent across reloads — if we
+  // inject stale credentials before the proxy starts, terminals opened
+  // immediately will get dead ports and ECONNREFUSED.
   const envCollection = context.environmentVariableCollection;
   envCollection.persistent = true;
 
-  // Also keep the file-watcher fallback (Alternative 1) for when the
-  // LM API proxy isn't available (e.g., no Copilot models).
-  syncProxyCredentials(envCollection);
+  // Clear any stale credentials from a previous session immediately.
+  // This prevents terminals from connecting to a dead port while the
+  // proxy is still starting up.
+  envCollection.delete('ANTHROPIC_BASE_URL');
+  envCollection.delete('ANTHROPIC_API_KEY');
+  envCollection.delete('CLAUDECODE');
+  envCollection.delete('CLAUDE_CODE_ENTRYPOINT');
+
   const credPath = path.join(
     process.env.HOME || process.env.USERPROFILE || '',
     '.claude',
     PROXY_CREDENTIALS_FILE,
   );
-  try {
-    fs.watchFile(credPath, { interval: 3000 }, () => {
-      syncProxyCredentials(envCollection);
-    });
-    context.subscriptions.push({
-      dispose() { try { fs.unwatchFile(credPath); } catch {} },
-    });
-  } catch { /* best-effort */ }
+
+  /**
+   * Enable the file-watcher fallback. Only called if the LM proxy fails.
+   */
+  function enableFileWatcherFallback() {
+    syncProxyCredentials(envCollection);
+    try {
+      fs.watchFile(credPath, { interval: 3000 }, () => {
+        syncProxyCredentials(envCollection);
+      });
+      context.subscriptions.push({
+        dispose() { try { fs.unwatchFile(credPath); } catch {} },
+      });
+    } catch { /* best-effort */ }
+  }
 
   // Launch the own proxy asynchronously
   startProxy().then(proxy => {
@@ -1128,7 +1145,7 @@ function activate(context) {
     // Mark our proxy as active so the file-watcher ignores SDK credentials
     ownProxyActive = true;
 
-    // Inject into all terminals — overrides the file-watcher values
+    // NOW inject credentials — the proxy is confirmed alive
     envCollection.replace('ANTHROPIC_BASE_URL', baseUrl);
     envCollection.replace('ANTHROPIC_API_KEY', apiKey);
     envCollection.replace('CLAUDECODE', '1');
@@ -1154,10 +1171,11 @@ function activate(context) {
       5000,
     );
   }).catch(err => {
-    // LM proxy failed — file-watcher fallback is still active
+    // LM proxy failed — fall back to file-watcher (reads SDK proxy credentials)
+    enableFileWatcherFallback();
     const msg = err instanceof Error ? err.message : String(err);
     vscode.window.setStatusBarMessage(
-      `$(warning) OpenClaude LM proxy failed: ${msg}`,
+      `$(warning) OpenClaude LM proxy failed, using fallback: ${msg}`,
       8000,
     );
   });
