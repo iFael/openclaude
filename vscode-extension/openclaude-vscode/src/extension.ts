@@ -600,4 +600,14 @@ function activate(context: vscode.ExtensionContext): void {
 
 function deactivate(): void {}
 
-export { activate, deactivate, OpenClaudeControlCenterProvider, renderControlCenterHtml, resolveLaunchTargets };
+export {
+  activate,
+  deactivate,
+  getExecutableFromCommand,
+  getProviderSourceLabel,
+  getWorkspaceSourceLabel,
+  OpenClaudeControlCenterProvider,
+  readWorkspaceProfile,
+  renderControlCenterHtml,
+  resolveLaunchTargets,
+};
