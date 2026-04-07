@@ -1,17 +1,111 @@
-// renderer.js — Control Center HTML rendering extracted from extension.js.
+// renderer.ts — Control Center HTML rendering extracted from extension.ts.
 //
 // Owns all view-layer concerns: CSS, HTML templating, and the data-to-HTML
-// pipeline. extension.js keeps business logic, launch actions, credential
+// pipeline. extension.ts keeps business logic, launch actions, credential
 // sync, and the VS Code activation lifecycle.
 
-const crypto = require('crypto');
-const { buildControlCenterViewModel } = require('./presentation');
+import * as crypto from 'crypto';
+import { buildControlCenterViewModel } from './presentation';
+
+// ---------------------------------------------------------------------------
+// Types & Interfaces
+// ---------------------------------------------------------------------------
+
+export type Tone = 'accent' | 'positive' | 'warning' | 'critical' | 'neutral';
+
+type ButtonVariant = 'primary' | 'secondary';
+
+export interface HeaderBadge {
+  key: string;
+  label: string;
+  value: string;
+  tone: Tone;
+}
+
+export interface SummaryCard {
+  key: string;
+  label: string;
+  value: string;
+  detail?: string;
+}
+
+export interface DetailRow {
+  key?: string;
+  label: string;
+  summary: string;
+  detail?: string;
+  tone?: Tone;
+}
+
+export interface DetailSection {
+  title: string;
+  rows: DetailRow[];
+}
+
+export interface ActionButton {
+  id: string;
+  label: string;
+  detail: string;
+  tone?: string;
+  disabled?: boolean;
+}
+
+export interface ViewModelHeader {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+}
+
+export interface ViewModelActions {
+  primary: ActionButton;
+  launchRoot: ActionButton;
+  openProfile: ActionButton | null;
+}
+
+export interface ControlCenterViewModel {
+  header: ViewModelHeader;
+  headerBadges: HeaderBadge[];
+  summaryCards: SummaryCard[];
+  detailSections: DetailSection[];
+  actions: ViewModelActions;
+}
+
+export interface ProviderState {
+  label?: string;
+  source?: string;
+  detail?: string;
+}
+
+export interface ControlCenterStatus {
+  installed?: boolean;
+  executable?: string;
+  providerState?: ProviderState;
+  providerSourceLabel?: string;
+  workspaceFolder?: string | null;
+  workspaceSourceLabel?: string;
+  launchCwdLabel?: string;
+  launchCwd?: string | null;
+  launchCwdSourceLabel?: string;
+  launchCommand?: string;
+  terminalName?: string;
+  profileStatusLabel?: string;
+  profileStatusHint?: string;
+  workspaceProfilePath?: string | null;
+  canLaunchInWorkspaceRoot?: boolean;
+  workspaceRootCwdLabel?: string;
+  launchActionsShareTargetReason?: string | null;
+}
+
+export interface RenderOptions {
+  nonce?: string;
+  platform?: string;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function escapeHtml(value) {
+function escapeHtml(value: unknown): string {
   return String(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -20,7 +114,7 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-function getToneClass(tone) {
+function getToneClass(tone?: Tone): string {
   switch (tone) {
     case 'accent':
       return 'tone-accent';
@@ -39,14 +133,14 @@ function getToneClass(tone) {
 // Component renderers
 // ---------------------------------------------------------------------------
 
-function renderHeaderBadge(badge) {
+function renderHeaderBadge(badge: HeaderBadge): string {
   return `<div class="rail-pill ${getToneClass(badge.tone)}" title="${escapeHtml(badge.label)}: ${escapeHtml(badge.value)}">
     <span class="rail-label">${escapeHtml(badge.label)}</span>
     <span class="rail-value">${escapeHtml(badge.value)}</span>
   </div>`;
 }
 
-function renderSummaryCard(card) {
+function renderSummaryCard(card: SummaryCard): string {
   const detail = card.detail || '';
   return `<section class="summary-card" aria-label="${escapeHtml(card.label)}">
     <div class="summary-label">${escapeHtml(card.label)}</div>
@@ -55,7 +149,7 @@ function renderSummaryCard(card) {
   </section>`;
 }
 
-function renderDetailRow(row) {
+function renderDetailRow(row: DetailRow): string {
   return `<div class="detail-row ${getToneClass(row.tone)}">
     <div class="detail-label">${escapeHtml(row.label)}</div>
     <div class="detail-summary" title="${escapeHtml(row.summary)}">${escapeHtml(row.summary)}</div>
@@ -63,7 +157,7 @@ function renderDetailRow(row) {
   </div>`;
 }
 
-function renderDetailSection(section) {
+function renderDetailSection(section: DetailSection): string {
   const sectionId = `section-${String(section.title || 'section')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')}`;
@@ -73,14 +167,14 @@ function renderDetailSection(section) {
   </section>`;
 }
 
-function renderActionButton(action, variant = 'secondary') {
+function renderActionButton(action: ActionButton, variant: ButtonVariant = 'secondary'): string {
   return `<button class="action-button ${variant}" id="${escapeHtml(action.id)}" type="button" ${action.disabled ? 'disabled aria-disabled="true"' : ''}>
     <span class="action-label">${escapeHtml(action.label)}</span>
     <span class="action-detail">${escapeHtml(action.detail)}</span>
   </button>`;
 }
 
-function renderProfileEmptyState(detail) {
+function renderProfileEmptyState(detail: string): string {
   return `<div class="action-empty" role="status" aria-live="polite">
     <div class="action-empty-title">No workspace profile yet</div>
     <div class="action-empty-detail">${escapeHtml(detail)}</div>
@@ -91,7 +185,7 @@ function renderProfileEmptyState(detail) {
 // Launch action detail text
 // ---------------------------------------------------------------------------
 
-function getPrimaryLaunchActionDetail(status) {
+function getPrimaryLaunchActionDetail(status: ControlCenterStatus): string {
   if (status.launchActionsShareTargetReason === 'relative-launch-command' && status.launchCwd) {
     return `Project-aware launch is anchored to the workspace root by the relative command · ${status.launchCwdLabel}`;
   }
@@ -107,7 +201,7 @@ function getPrimaryLaunchActionDetail(status) {
   return 'Project-aware launch. Uses the VS Code default terminal cwd';
 }
 
-function getWorkspaceRootActionDetail(status, fallbackDetail) {
+function getWorkspaceRootActionDetail(status: ControlCenterStatus, fallbackDetail: string): string {
   if (!status.canLaunchInWorkspaceRoot) {
     return fallbackDetail;
   }
@@ -123,8 +217,8 @@ function getWorkspaceRootActionDetail(status, fallbackDetail) {
 // View-model assembly
 // ---------------------------------------------------------------------------
 
-function getRenderableViewModel(status) {
-  const viewModel = buildControlCenterViewModel(status);
+function getRenderableViewModel(status: ControlCenterStatus): ControlCenterViewModel {
+  const viewModel = buildControlCenterViewModel(status) as ControlCenterViewModel;
   const summaryCards = viewModel.summaryCards.map((card) => {
     if (card.key !== 'launchCwd' || card.detail) {
       return card;
@@ -157,7 +251,7 @@ function getRenderableViewModel(status) {
 // CSS (inlined for CSP compatibility with VS Code webviews)
 // ---------------------------------------------------------------------------
 
-const CONTROL_CENTER_CSS = `
+const CONTROL_CENTER_CSS: string = `
     :root {
       --oc-bg: #050505;
       --oc-panel: #110d0c;
@@ -521,7 +615,7 @@ const CONTROL_CENTER_CSS = `
 // Main render
 // ---------------------------------------------------------------------------
 
-function renderControlCenterHtml(status, options = {}) {
+function renderControlCenterHtml(status: ControlCenterStatus, options: RenderOptions = {}): string {
   const nonce = options.nonce || crypto.randomBytes(16).toString('base64');
   const platform = options.platform || process.platform;
   const viewModel = getRenderableViewModel(status);
@@ -623,7 +717,7 @@ function renderControlCenterHtml(status, options = {}) {
 // Error HTML
 // ---------------------------------------------------------------------------
 
-function renderErrorHtml(error) {
+function renderErrorHtml(error: unknown): string {
   const nonce = crypto.randomBytes(16).toString('base64');
   const message = error instanceof Error ? error.message : 'Unknown Control Center error';
 
@@ -682,8 +776,4 @@ function renderErrorHtml(error) {
 </html>`;
 }
 
-module.exports = {
-  escapeHtml,
-  renderControlCenterHtml,
-  renderErrorHtml,
-};
+export { escapeHtml, renderControlCenterHtml, renderErrorHtml };

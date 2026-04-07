@@ -1,13 +1,8 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-
-function loadPresentation() {
-  return require('./presentation');
-}
+import { test } from 'bun:test';
+import assert from 'node:assert/strict';
+import { buildActionModel, buildControlCenterViewModel, truncateMiddle } from './presentation';
 
 test('truncateMiddle keeps the profile filename visible', () => {
-  const { truncateMiddle } = loadPresentation();
-
   assert.equal(
     truncateMiddle('/Users/example/projects/openclaude/workspace/.openclaude-profile.json', 30),
     '.../.openclaude-profile.json',
@@ -15,8 +10,6 @@ test('truncateMiddle keeps the profile filename visible', () => {
 });
 
 test('truncateMiddle keeps the filename visible for Windows-style paths', () => {
-  const { truncateMiddle } = loadPresentation();
-
   assert.equal(
     truncateMiddle('C:\\Users\\example\\openclaude\\workspace\\.openclaude-profile.json', 30),
     '...\\.openclaude-profile.json',
@@ -24,8 +17,6 @@ test('truncateMiddle keeps the filename visible for Windows-style paths', () => 
 });
 
 test('buildActionModel disables workspace-root launch without a workspace', () => {
-  const { buildActionModel } = loadPresentation();
-
   const model = buildActionModel({
     canLaunchInWorkspaceRoot: false,
     workspaceProfilePath: null,
@@ -41,8 +32,6 @@ test('buildActionModel disables workspace-root launch without a workspace', () =
 });
 
 test('buildActionModel hides workspace-profile action when no profile exists', () => {
-  const { buildActionModel } = loadPresentation();
-
   const model = buildActionModel({
     canLaunchInWorkspaceRoot: true,
     workspaceProfilePath: null,
@@ -59,8 +48,6 @@ test('buildActionModel hides workspace-profile action when no profile exists', (
 });
 
 test('buildActionModel includes workspace-profile action when a profile exists', () => {
-  const { buildActionModel } = loadPresentation();
-
   const model = buildActionModel({
     canLaunchInWorkspaceRoot: true,
     workspaceProfilePath: 'C:\\Users\\example\\openclaude\\workspace\\.openclaude-profile.json',
@@ -75,7 +62,7 @@ test('buildActionModel includes workspace-profile action when a profile exists',
   });
 });
 
-function createStatus(overrides = {}) {
+function createStatus(overrides: Record<string, unknown> = {}) {
   return {
     installed: true,
     executable: 'openclaude',
@@ -101,8 +88,6 @@ function createStatus(overrides = {}) {
 }
 
 test('buildControlCenterViewModel keeps header badges and summary cards non-redundant', () => {
-  const { buildControlCenterViewModel } = loadPresentation();
-
   const viewModel = buildControlCenterViewModel(createStatus());
   const headerKeys = new Set(viewModel.headerBadges.map((badge) => badge.key));
   const summaryKeys = new Set(viewModel.summaryCards.map((card) => card.key));
@@ -116,8 +101,6 @@ test('buildControlCenterViewModel keeps header badges and summary cards non-redu
 });
 
 test('buildControlCenterViewModel uses stable semantic tones for badges and actions', () => {
-  const { buildControlCenterViewModel } = loadPresentation();
-
   const viewModel = buildControlCenterViewModel(
     createStatus({
       installed: false,
@@ -157,8 +140,6 @@ test('buildControlCenterViewModel uses stable semantic tones for badges and acti
 });
 
 test('buildControlCenterViewModel uses a concise project summary before full path detail', () => {
-  const { buildControlCenterViewModel } = loadPresentation();
-
   const viewModel = buildControlCenterViewModel(createStatus());
 
   assert.deepEqual(viewModel.detailSections, [
@@ -203,8 +184,6 @@ test('buildControlCenterViewModel uses a concise project summary before full pat
 });
 
 test('buildControlCenterViewModel keeps launch command only in summary cards', () => {
-  const { buildControlCenterViewModel } = loadPresentation();
-
   const viewModel = buildControlCenterViewModel(createStatus());
 
   assert.deepEqual(
@@ -224,8 +203,6 @@ test('buildControlCenterViewModel keeps launch command only in summary cards', (
 });
 
 test('buildControlCenterViewModel keeps env-backed provider detail non-redundant', () => {
-  const { buildControlCenterViewModel } = loadPresentation();
-
   const viewModel = buildControlCenterViewModel(
     createStatus({
       providerState: {
@@ -250,8 +227,6 @@ test('buildControlCenterViewModel keeps env-backed provider detail non-redundant
 });
 
 test('buildControlCenterViewModel keeps shim-backed provider detail honest', () => {
-  const { buildControlCenterViewModel } = loadPresentation();
-
   const viewModel = buildControlCenterViewModel(
     createStatus({
       providerState: {
@@ -276,8 +251,6 @@ test('buildControlCenterViewModel keeps shim-backed provider detail honest', () 
 });
 
 test('buildControlCenterViewModel keeps unknown provider detail honest', () => {
-  const { buildControlCenterViewModel } = loadPresentation();
-
   const viewModel = buildControlCenterViewModel(
     createStatus({
       providerState: {
@@ -302,8 +275,6 @@ test('buildControlCenterViewModel keeps unknown provider detail honest', () => {
 });
 
 test('buildControlCenterViewModel carries forward the existing action model', () => {
-  const { buildControlCenterViewModel, buildActionModel } = loadPresentation();
-
   const status = createStatus();
   const viewModel = buildControlCenterViewModel(status);
 

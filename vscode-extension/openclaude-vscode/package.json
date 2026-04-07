@@ -21,14 +21,11 @@
     "onCommand:openclaude.openControlCenter",
     "onView:openclaude.controlCenter"
   ],
-  "main": "./src/extension.js",
+  "main": "./out/extension.js",
   "files": [
     "README.md",
     "media/**",
-    "src/extension.js",
-    "src/proxy.js",
-    "src/presentation.js",
-    "src/state.js",
+    "out/**",
     "themes/**"
   ],
   "contributes": {
@@ -111,9 +108,10 @@
     ]
   },
   "scripts": {
-    "test": "node --test ./src/*.test.js",
-    "lint": "node -e \"for (const file of require('node:fs').readdirSync('./src')) { if (file.endsWith('.js')) { require('node:child_process').execFileSync(process.execPath, ['--check', require('node:path').join('src', file)], { stdio: 'inherit' }); } }\"",
-    "package": "npx @vscode/vsce package --no-dependencies"
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -p tsconfig.json --watch",
+    "test": "bun test ./src/*.test.ts",
+    "package": "npm run build && npx @vscode/vsce package --no-dependencies"
   },
   "keywords": [
     "openclaude",
@@ -126,5 +124,8 @@
     "type": "git",
     "url": "https://github.com/Gitlawb/openclaude"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@types/vscode": "^1.110.0"
+  }
 }

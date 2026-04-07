@@ -1,9 +1,9 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const { EventEmitter } = require('node:events');
-const { mock } = require('bun:test');
+import { mock, test } from 'bun:test';
+import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 
-// Mock vscode before loading proxy
+// Restore any stale mocks, then register our complete vscode mock
+mock.restore();
 mock.module('vscode', () => ({
   lm: {
     selectChatModels: async () => [],
@@ -15,37 +15,36 @@ mock.module('vscode', () => ({
   },
   LanguageModelError: class extends Error {},
   LanguageModelTextPart: class {
-    constructor(value) {
-      this.value = value;
-    }
+    constructor(public value: string) {}
   },
   LanguageModelToolCallPart: class {
-    constructor(callId, name, input) {
-      this.callId = callId;
-      this.name = name;
-      this.input = input;
-    }
+    constructor(
+      public callId: string,
+      public name: string,
+      public input: unknown,
+    ) {}
   },
   LanguageModelToolResultPart: class {
-    constructor(id, parts) {
-      this.callId = id;
-      this.parts = parts;
-    }
+    constructor(
+      public callId: string,
+      public parts: unknown[],
+    ) {}
   },
   LanguageModelChatMessage: {
-    User: (content) => ({ role: 'user', content }),
-    Assistant: (content) => ({ role: 'assistant', content }),
+    User: (content: unknown) => ({ role: 'user', content }),
+    Assistant: (content: unknown) => ({ role: 'assistant', content }),
   },
   LanguageModelChatTool: class {
-    constructor(name, description, schema) {
-      this.name = name;
-      this.description = description;
-      this.inputSchema = schema;
-    }
+    constructor(
+      public name: string,
+      public description: string,
+      public inputSchema: unknown,
+    ) {}
   },
 }));
 
-const { _test } = require('./proxy');
+// Dynamic import after mock registration (cache buster prevents stale vscode mock)
+const { _test } = await import(`./proxy?ts=${Date.now()}`);
 const {
   normalizeModelName,
   pickModel,
@@ -74,8 +73,8 @@ test('normalizeModelName lowercases and trims', () => {
 });
 
 test('normalizeModelName handles null/undefined gracefully', () => {
-  assert.equal(normalizeModelName(null), '');
-  assert.equal(normalizeModelName(undefined), '');
+  assert.equal(normalizeModelName(null as any), '');
+  assert.equal(normalizeModelName(undefined as any), '');
 });
 
 // ---------------------------------------------------------------------------
@@ -86,14 +85,14 @@ const fakeModels = [
   { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet', family: 'sonnet', vendor: 'copilot' },
   { id: 'claude-opus-4-20250514', name: 'Claude Opus', family: 'opus', vendor: 'copilot' },
   { id: 'claude-haiku-3-5-20241022', name: 'Claude Haiku', family: 'haiku', vendor: 'copilot' },
-];
+] as any[];
 
 test('pickModel returns null for empty model list', () => {
   assert.equal(pickModel([], 'claude-sonnet'), null);
 });
 
 test('pickModel returns first model when no model requested', () => {
-  assert.equal(pickModel(fakeModels, null).id, 'claude-sonnet-4-20250514');
+  assert.equal(pickModel(fakeModels, null as any).id, 'claude-sonnet-4-20250514');
   assert.equal(pickModel(fakeModels, '').id, 'claude-sonnet-4-20250514');
 });
 
@@ -143,8 +142,8 @@ test('extractTextContent ignores non-text blocks', () => {
 });
 
 test('extractTextContent returns empty string for non-string non-array', () => {
-  assert.equal(extractTextContent(null), '');
-  assert.equal(extractTextContent(42), '');
+  assert.equal(extractTextContent(null as any), '');
+  assert.equal(extractTextContent(42 as any), '');
 });
 
 // ---------------------------------------------------------------------------
@@ -152,24 +151,21 @@ test('extractTextContent returns empty string for non-string non-array', () => {
 // ---------------------------------------------------------------------------
 
 test('estimateTokenCount counts string system prompt', () => {
-  const result = estimateTokenCount({ system: 'You are helpful.' });
-  // 16 chars / 4 * 1.1 = 4.4 → ceil = 5
+  const result = estimateTokenCount({ system: 'You are helpful.' } as any);
   assert.equal(result, 5);
 });
 
 test('estimateTokenCount counts array system prompt', () => {
   const result = estimateTokenCount({
     system: [{ text: 'block 1' }, { text: 'block 2' }],
-  });
-  // (7 + 7) = 14 / 4 * 1.1 = 3.85 → ceil = 4
+  } as any);
   assert.equal(result, 4);
 });
 
 test('estimateTokenCount counts string message content', () => {
   const result = estimateTokenCount({
     messages: [{ role: 'user', content: 'Hello world!' }],
-  });
-  // 12 / 4 * 1.1 = 3.3 → ceil = 4
+  } as any);
   assert.equal(result, 4);
 });
 
@@ -181,8 +177,7 @@ test('estimateTokenCount counts tool_use blocks', () => {
         content: [{ type: 'tool_use', name: 'bash', input: { cmd: 'ls' } }],
       },
     ],
-  });
-  // name: 4 chars + input JSON: '{"cmd":"ls"}' = 12 chars → 16 / 4 * 1.1 = 4.4 → 5
+  } as any);
   assert.equal(result, 5);
 });
 
@@ -194,8 +189,7 @@ test('estimateTokenCount counts tool_result blocks (string)', () => {
         content: [{ type: 'tool_result', content: 'file.txt' }],
       },
     ],
-  });
-  // 8 / 4 * 1.1 = 2.2 → 3
+  } as any);
   assert.equal(result, 3);
 });
 
@@ -208,7 +202,7 @@ test('estimateTokenCount counts tool definitions', () => {
         input_schema: { type: 'object', properties: { path: { type: 'string' } } },
       },
     ],
-  });
+  } as any);
   const nameLen = 4;
   const descLen = 11;
   const schemaLen = JSON.stringify({ type: 'object', properties: { path: { type: 'string' } } }).length;
@@ -224,13 +218,12 @@ test('estimateTokenCount counts thinking blocks', () => {
         content: [{ type: 'thinking', thinking: 'Let me consider...' }],
       },
     ],
-  });
-  // 18 / 4 * 1.1 = 4.95 → 5
+  } as any);
   assert.equal(result, 5);
 });
 
 test('estimateTokenCount returns 0 for empty request', () => {
-  assert.equal(estimateTokenCount({}), 0);
+  assert.equal(estimateTokenCount({} as any), 0);
 });
 
 // ---------------------------------------------------------------------------
@@ -240,12 +233,12 @@ test('estimateTokenCount returns 0 for empty request', () => {
 test('writeSSE formats event and JSON data correctly', () => {
   let written = '';
   const fakeRes = {
-    write: (data) => {
+    write: (data: string) => {
       written += data;
     },
   };
 
-  writeSSE(fakeRes, 'message_start', { type: 'message_start', id: '123' });
+  writeSSE(fakeRes as any, 'message_start', { type: 'message_start', id: '123' });
 
   assert.equal(written, 'event: message_start\ndata: {"type":"message_start","id":"123"}\n\n');
 });
@@ -256,7 +249,7 @@ test('writeSSE formats event and JSON data correctly', () => {
 
 test('readBody reads a normal request body', async () => {
   const req = new EventEmitter();
-  const promise = readBody(req);
+  const promise = readBody(req as any);
 
   req.emit('data', 'hello ');
   req.emit('data', 'world');
@@ -266,11 +259,10 @@ test('readBody reads a normal request body', async () => {
 });
 
 test('readBody rejects when request body exceeds MAX_BODY_BYTES', async () => {
-  const req = new EventEmitter();
+  const req = new EventEmitter() as any;
   req.destroy = () => {};
   const promise = readBody(req);
 
-  // Send a chunk larger than 1MB
   const bigChunk = Buffer.alloc(MAX_BODY_BYTES + 1, 'x');
   req.emit('data', bigChunk);
 
@@ -279,7 +271,7 @@ test('readBody rejects when request body exceeds MAX_BODY_BYTES', async () => {
 
 test('readBody rejects on stream error', async () => {
   const req = new EventEmitter();
-  const promise = readBody(req);
+  const promise = readBody(req as any);
 
   req.emit('error', new Error('connection reset'));
 
@@ -327,7 +319,6 @@ test('translateMessages handles tool_result blocks in user messages', () => {
     },
   ];
   const result = translateMessages(messages, null);
-  // Should have: 1 text User message + 1 tool_result User message
   assert.equal(result.length, 2);
   assert.equal(result[0].role, 'user');
   assert.equal(result[0].content, 'Here is the result');

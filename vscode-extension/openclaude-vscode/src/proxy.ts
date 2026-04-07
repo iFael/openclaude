@@ -1,37 +1,98 @@
-// proxy.js — Anthropic-compatible HTTP proxy backed by VS Code Language Model API.
+// proxy.ts — Anthropic-compatible HTTP proxy backed by VS Code Language Model API.
 //
 // Creates a local HTTP server that accepts requests in the Anthropic
 // /v1/messages format and translates them to vscode.lm calls. Streams
 // responses back as Anthropic SSE events.
 
-const http = require('http');
-const crypto = require('crypto');
-const vscode = require('vscode');
+import * as crypto from 'crypto';
+import * as http from 'http';
+import type { AddressInfo } from 'net';
+import * as vscode from 'vscode';
+
+// ---------------------------------------------------------------------------
+// Interfaces
+// ---------------------------------------------------------------------------
+
+/** The object returned by startProxy(). */
+export interface ProxyInstance {
+  port: number;
+  apiKey: string;
+  server: http.Server;
+  dispose: () => void;
+}
 
 /**
- * @typedef {Object} ProxyInstance
- * @property {number} port
- * @property {string} apiKey
- * @property {http.Server} server
- * @property {() => void} dispose
+ * Anthropic API content block. Properties are optional because different
+ * block types (text, tool_use, tool_result, thinking) carry different
+ * fields, and the code accesses them defensively with `|| ''` guards.
  */
+interface AnthropicContentBlock {
+  type: string;
+  /** text block */
+  text?: string;
+  /** tool_use block */
+  id?: string;
+  name?: string;
+  input?: Record<string, unknown>;
+  /** tool_result block */
+  tool_use_id?: string;
+  content?: string | AnthropicContentBlock[];
+  /** thinking block */
+  thinking?: string;
+}
+
+interface AnthropicSystemBlock {
+  text: string;
+}
+
+interface AnthropicMessage {
+  role: 'user' | 'assistant';
+  content: string | AnthropicContentBlock[];
+}
+
+interface AnthropicToolDefinition {
+  type?: string;
+  name: string;
+  description?: string;
+  input_schema?: Record<string, unknown>;
+}
+
+/** Anthropic /v1/messages request body. */
+export interface AnthropicMessagesRequest {
+  model?: string;
+  messages: AnthropicMessage[];
+  system?: string | AnthropicSystemBlock[];
+  max_tokens?: number;
+  tools?: AnthropicToolDefinition[];
+  stream?: boolean;
+}
+
+/**
+ * Constructor type for VS Code LM tool descriptors.
+ * Depending on VS Code version this is LanguageModelChatTool
+ * or LanguageModelToolInformation — access dynamically.
+ */
+type LMToolConstructor = new (name: string, description: string, inputSchema: Record<string, unknown>) => unknown;
+
+// ---------------------------------------------------------------------------
+// Main entry point
+// ---------------------------------------------------------------------------
 
 /**
  * Start the proxy server.
- * @returns {Promise<ProxyInstance>}
  */
-async function startProxy() {
-  const apiKey = `oc-lm-${crypto.randomUUID()}`;
-  let activeModels = await selectClaudeModels();
+export async function startProxy(): Promise<ProxyInstance> {
+  const apiKey: string = `oc-lm-${crypto.randomUUID()}`;
+  let activeModels: vscode.LanguageModelChat[] = await selectClaudeModels();
 
   // Re-discover models when they change
-  const modelChangeDisposable = vscode.lm.onDidChangeChatModels(async () => {
+  const modelChangeDisposable: vscode.Disposable = vscode.lm.onDidChangeChatModels(async () => {
     activeModels = await selectClaudeModels();
   });
 
-  const server = http.createServer(async (req, res) => {
+  const server: http.Server = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
     // Parse pathname once, stripping query strings (e.g. ?beta=true)
-    const pathname = (req.url || '').split('?')[0];
+    const pathname: string = (req.url || '').split('?')[0];
 
     // --- Health check ---
     if (req.method === 'GET' && (pathname === '/' || pathname === '')) {
@@ -42,7 +103,7 @@ async function startProxy() {
 
     // --- Model diagnostics (no auth required) ---
     if (req.method === 'GET' && pathname === '/v1/models') {
-      const models = activeModels.map((m) => ({
+      const models = activeModels.map((m: vscode.LanguageModelChat) => ({
         id: m.id,
         name: m.name || m.id,
         vendor: m.vendor || 'unknown',
@@ -56,7 +117,8 @@ async function startProxy() {
     }
 
     // --- Auth check ---
-    const incomingKey = req.headers['x-api-key'] || (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    const incomingKey: string =
+      (req.headers['x-api-key'] as string) || ((req.headers.authorization as string) || '').replace(/^Bearer\s+/i, '');
     if (incomingKey !== apiKey) {
       res.writeHead(401, { 'Content-Type': 'application/json' });
       res.end(
@@ -75,13 +137,13 @@ async function startProxy() {
     // This saves 1-3 premium requests per turn.
     if (req.method === 'POST' && pathname === '/v1/messages/count_tokens') {
       try {
-        const body = await readBody(req);
-        const request = JSON.parse(body);
-        const estimate = estimateTokenCount(request);
+        const body: string = await readBody(req);
+        const request: AnthropicMessagesRequest = JSON.parse(body);
+        const estimate: number = estimateTokenCount(request);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ input_tokens: estimate }));
-      } catch (err) {
-        console.debug('[openclaude-proxy] count_tokens error:', err?.message || err);
+      } catch (err: unknown) {
+        console.debug('[openclaude-proxy] count_tokens error:', (err as Error)?.message || err);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(
           JSON.stringify({
@@ -96,11 +158,11 @@ async function startProxy() {
     // --- POST /v1/messages ---
     if (req.method === 'POST' && pathname === '/v1/messages') {
       try {
-        const body = await readBody(req);
-        const request = JSON.parse(body);
+        const body: string = await readBody(req);
+        const request: AnthropicMessagesRequest = JSON.parse(body);
         await handleMessages(request, activeModels, res);
-      } catch (err) {
-        console.debug('[openclaude-proxy] messages error:', err?.message || err);
+      } catch (err: unknown) {
+        console.debug('[openclaude-proxy] messages error:', (err as Error)?.message || err);
         if (!res.headersSent) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
         }
@@ -123,14 +185,14 @@ async function startProxy() {
     );
   });
 
-  return new Promise((resolve, reject) => {
+  return new Promise<ProxyInstance>((resolve, reject) => {
     server.listen(0, '127.0.0.1', () => {
-      const port = /** @type {import('net').AddressInfo} */ (server.address()).port;
+      const port: number = (server.address() as AddressInfo).port;
       resolve({
         port,
         apiKey,
         server,
-        dispose() {
+        dispose(): void {
           modelChangeDisposable.dispose();
           server.close();
         },
@@ -144,17 +206,18 @@ async function startProxy() {
 // Model discovery
 // ---------------------------------------------------------------------------
 
-async function selectClaudeModels() {
+async function selectClaudeModels(): Promise<vscode.LanguageModelChat[]> {
   try {
     // Try multiple selectors — the model registration varies by extension
-    const allModels = await vscode.lm.selectChatModels();
+    const allModels: vscode.LanguageModelChat[] = await vscode.lm.selectChatModels();
     // Prefer Claude models
-    const claude = allModels.filter(
-      (m) => /claude/i.test(m.id) || /claude/i.test(m.name || '') || /claude/i.test(m.family || ''),
+    const claude: vscode.LanguageModelChat[] = allModels.filter(
+      (m: vscode.LanguageModelChat) =>
+        /claude/i.test(m.id) || /claude/i.test(m.name || '') || /claude/i.test(m.family || ''),
     );
     return claude.length > 0 ? claude : allModels;
-  } catch (err) {
-    console.debug('[openclaude-proxy] selectClaudeModels failed:', err?.message || err);
+  } catch (err: unknown) {
+    console.debug('[openclaude-proxy] selectClaudeModels failed:', (err as Error)?.message || err);
     return [];
   }
 }
@@ -163,7 +226,7 @@ async function selectClaudeModels() {
  * Normalize a model string: strip ANSI escape codes, brackets, and whitespace.
  * E.g. "claude-opus-4.6[1m]" → "claude-opus-4.6"
  */
-function normalizeModelName(name) {
+function normalizeModelName(name: string): string {
   return (
     (name || '')
       // Strip ANSI escape sequences (e.g. \x1b[1m)
@@ -178,19 +241,24 @@ function normalizeModelName(name) {
 /**
  * Pick the best model matching a requested model string.
  */
-function pickModel(models, requestedModel) {
+function pickModel(
+  models: vscode.LanguageModelChat[],
+  requestedModel: string | undefined,
+): vscode.LanguageModelChat | null {
   if (!models.length) return null;
   if (!requestedModel) return models[0];
 
-  const lower = normalizeModelName(requestedModel);
+  const lower: string = normalizeModelName(requestedModel);
 
   // Exact id match
-  const exact = models.find((m) => normalizeModelName(m.id) === lower);
+  const exact: vscode.LanguageModelChat | undefined = models.find(
+    (m: vscode.LanguageModelChat) => normalizeModelName(m.id) === lower,
+  );
   if (exact) return exact;
 
   // Partial match on id, name, or family
-  const partial = models.find(
-    (m) =>
+  const partial: vscode.LanguageModelChat | undefined = models.find(
+    (m: vscode.LanguageModelChat) =>
       normalizeModelName(m.id).includes(lower) ||
       normalizeModelName(m.name).includes(lower) ||
       normalizeModelName(m.family).includes(lower),
@@ -198,10 +266,10 @@ function pickModel(models, requestedModel) {
   if (partial) return partial;
 
   // Family heuristics: sonnet → sonnet, opus → opus, haiku → haiku
-  for (const hint of ['opus', 'sonnet', 'haiku']) {
+  for (const hint of ['opus', 'sonnet', 'haiku'] as const) {
     if (lower.includes(hint)) {
-      const match = models.find(
-        (m) =>
+      const match: vscode.LanguageModelChat | undefined = models.find(
+        (m: vscode.LanguageModelChat) =>
           normalizeModelName(m.id).includes(hint) ||
           normalizeModelName(m.name).includes(hint) ||
           normalizeModelName(m.family).includes(hint),
@@ -211,7 +279,9 @@ function pickModel(models, requestedModel) {
   }
 
   // Fallback to first Claude model, then first model overall
-  const claude = models.find((m) => /claude/i.test(m.id) || /claude/i.test(m.name || ''));
+  const claude: vscode.LanguageModelChat | undefined = models.find(
+    (m: vscode.LanguageModelChat) => /claude/i.test(m.id) || /claude/i.test(m.name || ''),
+  );
   return claude || models[0];
 }
 
@@ -219,8 +289,12 @@ function pickModel(models, requestedModel) {
 // Request handling
 // ---------------------------------------------------------------------------
 
-async function handleMessages(request, models, res) {
-  const model = pickModel(models, request.model);
+async function handleMessages(
+  request: AnthropicMessagesRequest,
+  models: vscode.LanguageModelChat[],
+  res: http.ServerResponse,
+): Promise<void> {
+  const model: vscode.LanguageModelChat | null = pickModel(models, request.model);
   if (!model) {
     res.writeHead(503, { 'Content-Type': 'application/json' });
     res.end(
@@ -233,10 +307,10 @@ async function handleMessages(request, models, res) {
   }
 
   // Build LM API messages
-  const lmMessages = translateMessages(request.messages, request.system);
+  const lmMessages: vscode.LanguageModelChatMessage[] = translateMessages(request.messages, request.system);
 
   // Build options
-  const options = {};
+  const options: Record<string, unknown> = {};
   if (request.max_tokens) {
     options.maxTokens = request.max_tokens;
   }
@@ -247,11 +321,15 @@ async function handleMessages(request, models, res) {
     // provider. Build tool descriptors using the available constructor;
     // if none exists, skip tools entirely — the model will still respond,
     // just without tool_use blocks.
-    const ToolCtor = vscode.LanguageModelChatTool ?? vscode.LanguageModelToolInformation;
+    //
+    // These constructors may not be present in all VS Code versions or in
+    // @types/vscode — access dynamically with type assertions.
+    const ToolCtor: LMToolConstructor | undefined =
+      (vscode as any).LanguageModelChatTool ?? (vscode as any).LanguageModelToolInformation;
     if (ToolCtor) {
-      const clientTools = request.tools
-        .filter((t) => t.type !== 'web_search_20250305') // skip server-side tools
-        .map((t) => {
+      const clientTools: unknown[] = request.tools
+        .filter((t: AnthropicToolDefinition) => t.type !== 'web_search_20250305') // skip server-side tools
+        .map((t: AnthropicToolDefinition) => {
           if (t.input_schema) {
             try {
               return new ToolCtor(t.name, t.description || '', t.input_schema);
@@ -269,13 +347,13 @@ async function handleMessages(request, models, res) {
   }
 
   // Send request with cancellation support
-  const cts = new vscode.CancellationTokenSource();
+  const cts: vscode.CancellationTokenSource = new vscode.CancellationTokenSource();
   onRequestClose(res, () => cts.cancel());
 
-  let response;
+  let response: vscode.LanguageModelChatResponse;
   try {
-    response = await model.sendRequest(lmMessages, options, cts.token);
-  } catch (err) {
+    response = await model.sendRequest(lmMessages, options as vscode.LanguageModelChatRequestOptions, cts.token);
+  } catch (err: unknown) {
     // Handle consent dialog or other LM API errors
     if (err instanceof vscode.LanguageModelError) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -297,7 +375,7 @@ async function handleMessages(request, models, res) {
     Connection: 'keep-alive',
   });
 
-  const msgId = `msg_${crypto.randomBytes(12).toString('hex')}`;
+  const msgId: string = `msg_${crypto.randomBytes(12).toString('hex')}`;
 
   // message_start
   writeSSE(res, 'message_start', {
@@ -319,10 +397,10 @@ async function handleMessages(request, models, res) {
     },
   });
 
-  let contentIndex = 0;
-  let outputTokenEstimate = 0;
-  let currentBlockType = null;
-  let lastBlockType = null;
+  let contentIndex: number = 0;
+  let outputTokenEstimate: number = 0;
+  let currentBlockType: string | null = null;
+  let lastBlockType: string | null = null;
 
   try {
     for await (const part of response.stream) {
@@ -357,7 +435,10 @@ async function handleMessages(request, models, res) {
         }
         currentBlockType = 'tool_use';
 
-        const toolInput = typeof part.input === 'string' ? JSON.parse(part.input) : part.input || {};
+        // input may arrive as a string (older providers) or as an object
+        const rawInput: unknown = part.input;
+        const toolInput: Record<string, unknown> =
+          typeof rawInput === 'string' ? JSON.parse(rawInput) : (rawInput as Record<string, unknown>) || {};
 
         writeSSE(res, 'content_block_start', {
           type: 'content_block_start',
@@ -385,7 +466,7 @@ async function handleMessages(request, models, res) {
       }
       // LanguageModelToolResultPart is handled in messages, not responses
     }
-  } catch (streamErr) {
+  } catch (streamErr: unknown) {
     // If the stream errors, we still need to close the SSE properly
     if (currentBlockType !== null) {
       writeSSE(res, 'content_block_stop', { type: 'content_block_stop', index: contentIndex });
@@ -406,8 +487,8 @@ async function handleMessages(request, models, res) {
   }
 
   // Determine stop reason
-  const finalType = currentBlockType || lastBlockType;
-  const stopReason = finalType === 'tool_use' ? 'tool_use' : 'end_turn';
+  const finalType: string | null = currentBlockType || lastBlockType;
+  const stopReason: string = finalType === 'tool_use' ? 'tool_use' : 'end_turn';
 
   // message_delta with usage
   writeSSE(res, 'message_delta', {
@@ -429,12 +510,18 @@ async function handleMessages(request, models, res) {
 // Message translation: Anthropic → VS Code LM API
 // ---------------------------------------------------------------------------
 
-function translateMessages(messages, systemPrompt) {
-  const lmMessages = [];
+function translateMessages(
+  messages: AnthropicMessage[],
+  systemPrompt: string | AnthropicSystemBlock[] | undefined,
+): vscode.LanguageModelChatMessage[] {
+  const lmMessages: vscode.LanguageModelChatMessage[] = [];
 
   // System prompt as a User message prefix (LM API convention)
   if (systemPrompt) {
-    const text = typeof systemPrompt === 'string' ? systemPrompt : systemPrompt.map((b) => b.text || '').join('\n');
+    const text: string =
+      typeof systemPrompt === 'string'
+        ? systemPrompt
+        : systemPrompt.map((b: AnthropicSystemBlock) => b.text || '').join('\n');
     if (text) {
       lmMessages.push(vscode.LanguageModelChatMessage.User(text));
     }
@@ -442,7 +529,7 @@ function translateMessages(messages, systemPrompt) {
 
   for (const msg of messages) {
     if (msg.role === 'user') {
-      const text = extractTextContent(msg.content);
+      const text: string = extractTextContent(msg.content);
       if (text) {
         lmMessages.push(vscode.LanguageModelChatMessage.User(text));
       }
@@ -451,22 +538,26 @@ function translateMessages(messages, systemPrompt) {
       if (Array.isArray(msg.content)) {
         for (const block of msg.content) {
           if (block.type === 'tool_result') {
-            const resultText =
+            const resultText: string =
               typeof block.content === 'string'
                 ? block.content
-                : (block.content || []).map((b) => b.text || '').join('\n');
+                : ((block.content || []) as AnthropicContentBlock[])
+                    .map((b: AnthropicContentBlock) => b.text || '')
+                    .join('\n');
+            // The User() factory may not accept a single ToolResultPart in all
+            // @types/vscode versions — use a type assertion for compatibility.
             lmMessages.push(
               vscode.LanguageModelChatMessage.User(
-                new vscode.LanguageModelToolResultPart(block.tool_use_id, [
+                new vscode.LanguageModelToolResultPart(block.tool_use_id!, [
                   new vscode.LanguageModelTextPart(resultText),
-                ]),
+                ]) as any,
               ),
             );
           }
         }
       }
     } else if (msg.role === 'assistant') {
-      const text = extractTextContent(msg.content);
+      const text: string = extractTextContent(msg.content);
       if (text) {
         lmMessages.push(vscode.LanguageModelChatMessage.Assistant(text));
       }
@@ -475,10 +566,12 @@ function translateMessages(messages, systemPrompt) {
       if (Array.isArray(msg.content)) {
         for (const block of msg.content) {
           if (block.type === 'tool_use') {
+            // The Assistant() factory's accepted content types may vary across
+            // VS Code versions — use a type assertion for compatibility.
             lmMessages.push(
               vscode.LanguageModelChatMessage.Assistant([
-                new vscode.LanguageModelToolCallPart(block.id, block.name, block.input || {}),
-              ]),
+                new vscode.LanguageModelToolCallPart(block.id!, block.name!, block.input || {}),
+              ] as any),
             );
           }
         }
@@ -489,12 +582,12 @@ function translateMessages(messages, systemPrompt) {
   return lmMessages;
 }
 
-function extractTextContent(content) {
+function extractTextContent(content: string | AnthropicContentBlock[]): string {
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) {
     return content
-      .filter((b) => b.type === 'text')
-      .map((b) => b.text)
+      .filter((b: AnthropicContentBlock) => b.type === 'text')
+      .map((b: AnthropicContentBlock) => b.text)
       .join('\n');
   }
   return '';
@@ -509,8 +602,8 @@ function extractTextContent(content) {
  * Uses ~4 chars per token heuristic (same as the CLI's roughTokenCountEstimation).
  * This avoids the expensive fallback that makes a real messages.create call.
  */
-function estimateTokenCount(request) {
-  let chars = 0;
+function estimateTokenCount(request: AnthropicMessagesRequest): number {
+  let chars: number = 0;
 
   // System prompt
   if (request.system) {
@@ -564,19 +657,19 @@ function estimateTokenCount(request) {
   return Math.ceil((chars / CHARS_PER_TOKEN) * TOKEN_OVERHEAD_MULTIPLIER);
 }
 
-function writeSSE(res, event, data) {
+function writeSSE(res: http.ServerResponse, event: string, data: unknown): void {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
-const MAX_BODY_BYTES = 1024 * 1024; // 1 MB — generous for any Anthropic messages payload.
-const CHARS_PER_TOKEN = 4;
-const TOKEN_OVERHEAD_MULTIPLIER = 1.1;
+const MAX_BODY_BYTES: number = 1024 * 1024; // 1 MB — generous for any Anthropic messages payload.
+const CHARS_PER_TOKEN: number = 4;
+const TOKEN_OVERHEAD_MULTIPLIER: number = 1.1;
 
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    let bytes = 0;
-    req.on('data', (chunk) => {
+function readBody(req: http.IncomingMessage): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    let body: string = '';
+    let bytes: number = 0;
+    req.on('data', (chunk: Buffer) => {
       bytes += chunk.length;
       if (bytes > MAX_BODY_BYTES) {
         req.destroy();
@@ -590,23 +683,24 @@ function readBody(req) {
   });
 }
 
-function onRequestClose(res, fn) {
+function onRequestClose(res: http.ServerResponse, fn: () => void): void {
   res.on('close', fn);
 }
 
-module.exports = {
-  startProxy,
-  // Exported for testing only:
-  _test: {
-    normalizeModelName,
-    pickModel,
-    extractTextContent,
-    estimateTokenCount,
-    writeSSE,
-    readBody,
-    translateMessages,
-    MAX_BODY_BYTES,
-    CHARS_PER_TOKEN,
-    TOKEN_OVERHEAD_MULTIPLIER,
-  },
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
+
+// Exported for testing only:
+export const _test = {
+  normalizeModelName,
+  pickModel,
+  extractTextContent,
+  estimateTokenCount,
+  writeSSE,
+  readBody,
+  translateMessages,
+  MAX_BODY_BYTES,
+  CHARS_PER_TOKEN,
+  TOKEN_OVERHEAD_MULTIPLIER,
 };

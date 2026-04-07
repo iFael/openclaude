@@ -1,31 +1,56 @@
-const vscode = require('vscode');
-const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
-
-const {
+import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as http from 'http';
+import * as path from 'path';
+import * as vscode from 'vscode';
+import { renderControlCenterHtml, renderErrorHtml } from './renderer';
+import {
   chooseLaunchWorkspace,
   describeProviderState,
   findCommandPath,
   isPathInsideWorkspace,
   parseProfileFile,
   resolveCommandCheckPath,
-} = require('./state');
-const { renderControlCenterHtml, renderErrorHtml } = require('./renderer');
+} from './state';
 
 const OPENCLAUDE_REPO_URL = 'https://github.com/Gitlawb/openclaude';
 const OPENCLAUDE_SETUP_URL = 'https://github.com/Gitlawb/openclaude/blob/main/README.md#quick-start';
 const PROFILE_FILE_NAME = '.openclaude-profile.json';
 
 // ---------------------------------------------------------------------------
+// Type definitions
+// ---------------------------------------------------------------------------
+
+interface LaunchTargetOptions {
+  activeFilePath?: string | null;
+  workspacePath?: string | null;
+  workspaceSourceLabel?: string;
+  executable?: string;
+}
+
+interface LaunchTargets {
+  projectAwareCwd: string | null;
+  projectAwareCwdLabel: string;
+  projectAwareSourceLabel: string;
+  workspaceRootCwd: string | null;
+  workspaceRootCwdLabel: string;
+  launchActionsShareTarget: boolean;
+  launchActionsShareTargetReason: string | null;
+}
+
+interface LaunchOptions {
+  requireWorkspace?: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Utility helpers
 // ---------------------------------------------------------------------------
 
-async function isCommandAvailable(command, launchCwd) {
-  return Boolean(findCommandPath(command, { cwd: launchCwd }));
+async function isCommandAvailable(command: string, launchCwd: string | null): Promise<boolean> {
+  return Boolean(findCommandPath(command, { cwd: launchCwd ?? undefined }));
 }
 
-function getExecutableFromCommand(command) {
+function getExecutableFromCommand(command: string): string {
   const normalized = String(command || '').trim();
   if (!normalized) {
     return '';
@@ -44,11 +69,11 @@ function getExecutableFromCommand(command) {
   return normalized.split(/\s+/)[0];
 }
 
-function getWorkspacePaths() {
+function getWorkspacePaths(): string[] {
   return (vscode.workspace.workspaceFolders || []).map((folder) => folder.uri.fsPath);
 }
 
-function getActiveWorkspacePath() {
+function getActiveWorkspacePath(): string | null {
   const editor = vscode.window.activeTextEditor;
   if (!editor || editor.document.uri.scheme !== 'file') {
     return null;
@@ -58,7 +83,7 @@ function getActiveWorkspacePath() {
   return workspaceFolder ? workspaceFolder.uri.fsPath : null;
 }
 
-function getActiveFilePath() {
+function getActiveFilePath(): string | null {
   const editor = vscode.window.activeTextEditor;
   if (!editor || editor.document.uri.scheme !== 'file') {
     return null;
@@ -71,9 +96,14 @@ function getActiveFilePath() {
 // Launch target resolution
 // ---------------------------------------------------------------------------
 
-function resolveLaunchTargets({ activeFilePath, workspacePath, workspaceSourceLabel, executable } = {}) {
-  const activeFileDirectory = isPathInsideWorkspace(activeFilePath, workspacePath)
-    ? path.dirname(activeFilePath)
+function resolveLaunchTargets({
+  activeFilePath,
+  workspacePath,
+  workspaceSourceLabel,
+  executable,
+}: LaunchTargetOptions = {}): LaunchTargets {
+  const activeFileDirectory = isPathInsideWorkspace(activeFilePath ?? null, workspacePath ?? null)
+    ? path.dirname(activeFilePath!)
     : null;
   const normalizedExecutable = String(executable || '').trim();
   const commandPath = normalizedExecutable ? resolveCommandCheckPath(normalizedExecutable, workspacePath) : null;
@@ -83,11 +113,11 @@ function resolveLaunchTargets({ activeFilePath, workspacePath, workspaceSourceLa
 
   if (relativeCommandRequiresWorkspaceRoot) {
     return {
-      projectAwareCwd: workspacePath,
-      projectAwareCwdLabel: workspacePath,
+      projectAwareCwd: workspacePath!,
+      projectAwareCwdLabel: workspacePath!,
       projectAwareSourceLabel: 'workspace root (required by relative launch command)',
-      workspaceRootCwd: workspacePath,
-      workspaceRootCwdLabel: workspacePath,
+      workspaceRootCwd: workspacePath!,
+      workspaceRootCwdLabel: workspacePath!,
       launchActionsShareTarget: true,
       launchActionsShareTargetReason: 'relative-launch-command',
     };
@@ -134,12 +164,12 @@ function resolveLaunchTargets({ activeFilePath, workspacePath, workspaceSourceLa
 
 function resolveLaunchWorkspace() {
   return chooseLaunchWorkspace({
-    activeWorkspacePath: getActiveWorkspacePath(),
+    activeWorkspacePath: getActiveWorkspacePath() ?? undefined,
     workspacePaths: getWorkspacePaths(),
   });
 }
 
-function getWorkspaceSourceLabel(source) {
+function getWorkspaceSourceLabel(source: string): string {
   switch (source) {
     case 'active-workspace':
       return 'active editor workspace';
@@ -150,7 +180,7 @@ function getWorkspaceSourceLabel(source) {
   }
 }
 
-function getProviderSourceLabel(source) {
+function getProviderSourceLabel(source: string): string {
   switch (source) {
     case 'profile':
       return 'saved profile';
@@ -163,7 +193,7 @@ function getProviderSourceLabel(source) {
   }
 }
 
-function readWorkspaceProfile(profilePath) {
+function readWorkspaceProfile(profilePath: string | null) {
   if (!profilePath || !fs.existsSync(profilePath)) {
     return {
       profile: null,
@@ -191,7 +221,7 @@ function readWorkspaceProfile(profilePath) {
       statusHint: profilePath,
       filePath: profilePath,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     return {
       profile: null,
       statusLabel: 'Unreadable',
@@ -203,9 +233,9 @@ function readWorkspaceProfile(profilePath) {
 
 async function collectControlCenterState() {
   const configured = vscode.workspace.getConfiguration('openclaude');
-  const launchCommand = configured.get('launchCommand', 'openclaude');
-  const terminalName = configured.get('terminalName', 'OpenClaude');
-  const shimEnabled = configured.get('useOpenAIShim', false);
+  const launchCommand = configured.get<string>('launchCommand', 'openclaude');
+  const terminalName = configured.get<string>('terminalName', 'OpenClaude');
+  const shimEnabled = configured.get<boolean>('useOpenAIShim', false);
   const executable = getExecutableFromCommand(launchCommand);
   const launchWorkspace = resolveLaunchWorkspace();
   const workspaceFolder = launchWorkspace.workspacePath;
@@ -262,12 +292,12 @@ async function collectControlCenterState() {
 // Launch actions
 // ---------------------------------------------------------------------------
 
-async function launchOpenClaude(options = {}) {
+async function launchOpenClaude(options: LaunchOptions = {}): Promise<void> {
   const { requireWorkspace = false } = options;
   const configured = vscode.workspace.getConfiguration('openclaude');
-  const launchCommand = configured.get('launchCommand', 'openclaude');
-  const terminalName = configured.get('terminalName', 'OpenClaude');
-  const shimEnabled = configured.get('useOpenAIShim', false);
+  const launchCommand = configured.get<string>('launchCommand', 'openclaude');
+  const terminalName = configured.get<string>('terminalName', 'OpenClaude');
+  const shimEnabled = configured.get<boolean>('useOpenAIShim', false);
   const executable = getExecutableFromCommand(launchCommand);
   const launchWorkspace = resolveLaunchWorkspace();
 
@@ -301,12 +331,12 @@ async function launchOpenClaude(options = {}) {
     return;
   }
 
-  const env = {};
+  const env: Record<string, string> = {};
   if (shimEnabled) {
     env.CLAUDE_CODE_USE_OPENAI = '1';
   }
 
-  const terminalOptions = {
+  const terminalOptions: vscode.TerminalOptions = {
     name: terminalName,
     env,
   };
@@ -320,7 +350,7 @@ async function launchOpenClaude(options = {}) {
   terminal.sendText(launchCommand, true);
 }
 
-async function openWorkspaceProfile() {
+async function openWorkspaceProfile(): Promise<void> {
   const state = await collectControlCenterState();
 
   if (!state.workspaceProfilePath) {
@@ -336,12 +366,14 @@ async function openWorkspaceProfile() {
 // WebviewViewProvider
 // ---------------------------------------------------------------------------
 
-class OpenClaudeControlCenterProvider {
+class OpenClaudeControlCenterProvider implements vscode.WebviewViewProvider {
+  webviewView: vscode.WebviewView | null;
+
   constructor() {
     this.webviewView = null;
   }
 
-  async resolveWebviewView(webviewView) {
+  async resolveWebviewView(webviewView: vscode.WebviewView): Promise<void> {
     this.webviewView = webviewView;
     webviewView.webview.options = { enableScripts: true };
 
@@ -351,7 +383,7 @@ class OpenClaudeControlCenterProvider {
       }
     });
 
-    webviewView.webview.onDidReceiveMessage(async (message) => {
+    webviewView.webview.onDidReceiveMessage(async (message: { type?: string }) => {
       switch (message?.type) {
         case 'launch':
           await launchOpenClaude();
@@ -382,7 +414,7 @@ class OpenClaudeControlCenterProvider {
     await this.refresh();
   }
 
-  async refresh() {
+  async refresh(): Promise<void> {
     if (!this.webviewView) {
       return;
     }
@@ -390,12 +422,12 @@ class OpenClaudeControlCenterProvider {
     try {
       const status = await collectControlCenterState();
       this.webviewView.webview.html = this.getHtml(status);
-    } catch (error) {
+    } catch (error: unknown) {
       this.webviewView.webview.html = renderErrorHtml(error);
     }
   }
 
-  getHtml(status) {
+  getHtml(status: Awaited<ReturnType<typeof collectControlCenterState>>): string {
     const nonce = crypto.randomBytes(16).toString('base64');
     return renderControlCenterHtml(status, { nonce, platform: process.platform });
   }
@@ -417,14 +449,14 @@ const PROXY_HEALTH_CHECK_TIMEOUT_MS = 2000;
 
 let _lastBaseUrl = '';
 let _lastApiKey = '';
-let _envCollection = null;
+let _envCollection: vscode.GlobalEnvironmentVariableCollection | null = null;
 
 const _credPath = path.join(process.env.HOME || process.env.USERPROFILE || '', '.claude', 'sdk-proxy-credentials.json');
 
 /**
  * Read proxy credentials from the file written by the SessionStart hook.
  */
-function readCredentialsFile() {
+function readCredentialsFile(): { baseUrl: string; apiKey: string } | null {
   try {
     if (!fs.existsSync(_credPath)) return null;
     const raw = fs.readFileSync(_credPath, 'utf8');
@@ -432,8 +464,8 @@ function readCredentialsFile() {
     if (creds.baseUrl && creds.apiKey && String(creds.apiKey).startsWith('vscode-lm-')) {
       return { baseUrl: creds.baseUrl, apiKey: creds.apiKey };
     }
-  } catch (err) {
-    console.debug('[openclaude] readCredentialsFile failed:', err?.message || err);
+  } catch (err: unknown) {
+    console.debug('[openclaude] readCredentialsFile failed:', err instanceof Error ? err.message : err);
   }
   return null;
 }
@@ -441,8 +473,7 @@ function readCredentialsFile() {
 /**
  * Verify that the proxy is alive by hitting GET /.
  */
-function verifySdkProxy(baseUrl) {
-  const http = require('http');
+function verifySdkProxy(baseUrl: string): Promise<boolean> {
   return new Promise((resolve) => {
     const url = baseUrl.replace('://localhost', '://127.0.0.1');
     const req = http.get(url, { timeout: PROXY_HEALTH_CHECK_TIMEOUT_MS }, (res) => {
@@ -464,7 +495,7 @@ function verifySdkProxy(baseUrl) {
  * Poll for credentials: read the file, verify proxy liveness, and
  * inject into terminals via environmentVariableCollection.
  */
-async function syncSdkProxyCredentials() {
+async function syncSdkProxyCredentials(): Promise<void> {
   const creds = readCredentialsFile();
 
   if (creds) {
@@ -497,10 +528,7 @@ async function syncSdkProxyCredentials() {
   }
 }
 
-/**
- * @param {vscode.ExtensionContext} context
- */
-function activate(context) {
+function activate(context: vscode.ExtensionContext): void {
   // --- SDK Proxy Credential Sync ---
   // Polls ~/.claude/sdk-proxy-credentials.json (written by SessionStart
   // hook) and injects credentials into terminals so `openclaude` connects
@@ -570,12 +598,6 @@ function activate(context) {
   );
 }
 
-function deactivate() {}
+function deactivate(): void {}
 
-module.exports = {
-  activate,
-  deactivate,
-  OpenClaudeControlCenterProvider,
-  renderControlCenterHtml,
-  resolveLaunchTargets,
-};
+export { activate, deactivate, OpenClaudeControlCenterProvider, renderControlCenterHtml, resolveLaunchTargets };

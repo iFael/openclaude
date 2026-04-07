@@ -1,12 +1,104 @@
-function truncateMiddle(value, maxLength) {
-  const text = String(value || '');
+// ---------------------------------------------------------------------------
+// Interfaces
+// ---------------------------------------------------------------------------
+
+export interface Badge {
+  key: string;
+  label: string;
+  value: string;
+  tone: string;
+}
+
+export interface SummaryCard {
+  key: string;
+  label: string;
+  value: string;
+  detail?: string;
+}
+
+export interface DetailRow {
+  key: string;
+  label: string;
+  summary: string;
+  detail: string;
+  tone?: string;
+}
+
+export interface DetailSection {
+  title: string;
+  rows: DetailRow[];
+}
+
+interface ActionItem {
+  id: string;
+  label: string;
+  detail: string;
+  tone: string;
+  disabled: boolean;
+}
+
+export interface ActionModel {
+  primary: ActionItem;
+  launchRoot: ActionItem;
+  openProfile: ActionItem | null;
+}
+
+export interface ControlCenterViewModel {
+  header: {
+    eyebrow: string;
+    title: string;
+    subtitle: string;
+  };
+  headerBadges: Badge[];
+  summaryCards: SummaryCard[];
+  detailSections: DetailSection[];
+  actions: ActionModel;
+}
+
+// ---------------------------------------------------------------------------
+// Input types
+// ---------------------------------------------------------------------------
+
+interface ProviderState {
+  source?: string;
+  label?: string;
+  detail?: string;
+}
+
+interface BuildActionModelOptions {
+  canLaunchInWorkspaceRoot?: boolean;
+  workspaceProfilePath?: string | null;
+}
+
+interface ControlCenterStatus {
+  installed?: boolean;
+  executable?: string;
+  providerState?: ProviderState;
+  providerSourceLabel?: string;
+  workspaceFolder?: string | null;
+  workspaceSourceLabel?: string;
+  launchCwdLabel?: string;
+  launchCommand?: string;
+  terminalName?: string;
+  profileStatusLabel?: string;
+  profileStatusHint?: string;
+  canLaunchInWorkspaceRoot?: boolean;
+  workspaceProfilePath?: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function truncateMiddle(value: unknown, maxLength: number): string {
+  const text: string = String(value || '');
   if (!text || text.length <= maxLength) {
     return text;
   }
 
-  const basename = text.split(/[\\/]/).filter(Boolean).pop() || '';
+  const basename: string = text.split(/[\\/]/).filter(Boolean).pop() || '';
   if (basename && basename.length + 4 <= maxLength) {
-    const separator = text.includes('\\') ? '\\' : '/';
+    const separator: string = text.includes('\\') ? '\\' : '/';
     return `...${separator}${basename}`;
   }
 
@@ -14,14 +106,14 @@ function truncateMiddle(value, maxLength) {
     return '.'.repeat(Math.max(maxLength, 0));
   }
 
-  const available = maxLength - 3;
-  const startLength = Math.ceil(available / 2);
-  const endLength = Math.floor(available / 2);
+  const available: number = maxLength - 3;
+  const startLength: number = Math.ceil(available / 2);
+  const endLength: number = Math.floor(available / 2);
   return `${text.slice(0, startLength)}...${text.slice(text.length - endLength)}`;
 }
 
-function getPathTail(value) {
-  const text = String(value || '');
+function getPathTail(value: unknown): string {
+  const text: string = String(value || '');
   if (!text) {
     return '';
   }
@@ -29,7 +121,10 @@ function getPathTail(value) {
   return text.split(/[\\/]/).filter(Boolean).pop() || text;
 }
 
-function buildActionModel({ canLaunchInWorkspaceRoot, workspaceProfilePath } = {}) {
+function buildActionModel({
+  canLaunchInWorkspaceRoot,
+  workspaceProfilePath,
+}: BuildActionModelOptions = {}): ActionModel {
   return {
     primary: {
       id: 'launch',
@@ -59,20 +154,20 @@ function buildActionModel({ canLaunchInWorkspaceRoot, workspaceProfilePath } = {
   };
 }
 
-function getRuntimeTone(installed) {
+function getRuntimeTone(installed: boolean | undefined): string {
   return installed ? 'positive' : 'critical';
 }
 
-function getProfileTone(profileStatusLabel) {
+function getProfileTone(profileStatusLabel: string | undefined): string {
   return profileStatusLabel === 'Invalid' || profileStatusLabel === 'Unreadable' ? 'warning' : 'neutral';
 }
 
-function getProviderTone(providerState) {
+function getProviderTone(providerState: ProviderState | undefined): string {
   return providerState?.source === 'shim' || providerState?.source === 'unknown' ? 'warning' : 'neutral';
 }
 
-function getProviderDetail(providerState, providerSourceLabel) {
-  const detail = providerState?.detail || '';
+function getProviderDetail(providerState: ProviderState | undefined, providerSourceLabel: string | undefined): string {
+  const detail: string = providerState?.detail || '';
   if (!detail) {
     return providerSourceLabel || '';
   }
@@ -90,13 +185,13 @@ function getProviderDetail(providerState, providerSourceLabel) {
   }
 }
 
-function buildControlCenterViewModel(status = {}) {
-  const runtimeSummary = status.installed ? 'Installed' : 'Missing';
-  const runtimeDetail = status.executable || 'Unknown command';
-  const providerDetail = getProviderDetail(status.providerState, status.providerSourceLabel);
-  const providerTone = getProviderTone(status.providerState);
-  const workspaceSummary = status.workspaceFolder ? getPathTail(status.workspaceFolder) : 'No workspace open';
-  const workspaceDetail =
+function buildControlCenterViewModel(status: ControlCenterStatus = {}): ControlCenterViewModel {
+  const runtimeSummary: string = status.installed ? 'Installed' : 'Missing';
+  const runtimeDetail: string = status.executable || 'Unknown command';
+  const providerDetail: string = getProviderDetail(status.providerState, status.providerSourceLabel);
+  const providerTone: string = getProviderTone(status.providerState);
+  const workspaceSummary: string = status.workspaceFolder ? getPathTail(status.workspaceFolder) : 'No workspace open';
+  const workspaceDetail: string =
     [status.workspaceFolder, status.workspaceSourceLabel].filter(Boolean).join(' · ') || 'no workspace open';
 
   return {
@@ -187,8 +282,4 @@ function buildControlCenterViewModel(status = {}) {
   };
 }
 
-module.exports = {
-  truncateMiddle,
-  buildActionModel,
-  buildControlCenterViewModel,
-};
+export { buildActionModel, buildControlCenterViewModel, truncateMiddle };

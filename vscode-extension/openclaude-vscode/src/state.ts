@@ -1,12 +1,58 @@
-const fs = require('fs');
-const path = require('path');
+import * as fs from 'fs';
+import * as path from 'path';
+
+// ---------------------------------------------------------------------------
+// Types & Interfaces
+// ---------------------------------------------------------------------------
+
+export type ProviderSource = 'profile' | 'env' | 'shim' | 'unknown';
+
+export type EnvRecord = Record<string, string | undefined>;
+
+export interface ProfileFile {
+  profile: string;
+  env: Record<string, string>;
+  createdAt: string | null;
+}
+
+export interface LaunchWorkspace {
+  workspacePath: string | null;
+  source: 'active-workspace' | 'first-workspace' | 'none';
+}
+
+export interface LaunchWorkspaceInput {
+  activeWorkspacePath?: string;
+  workspacePaths?: string[];
+}
+
+export interface ProviderState {
+  label: string;
+  detail: string;
+  source: ProviderSource;
+}
+
+export interface DescribeProviderInput {
+  shimEnabled?: boolean;
+  env: EnvRecord;
+  profile?: ProfileFile | null;
+}
+
+export interface FindCommandOptions {
+  cwd?: string;
+  env?: EnvRecord;
+  platform?: NodeJS.Platform;
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 
 const OLLAMA_DEFAULT_PORT = '11434';
 const LMSTUDIO_DEFAULT_PORT = '1234';
 
-const SAVED_PROFILES = new Set(['openai', 'ollama', 'codex', 'gemini', 'atomic-chat']);
+const SAVED_PROFILES: Set<string> = new Set(['openai', 'ollama', 'codex', 'gemini', 'atomic-chat']);
 
-const CODEX_ALIAS_MODELS = new Set([
+const CODEX_ALIAS_MODELS: Set<string> = new Set([
   'codexplan',
   'codexspark',
   'gpt-5.4',
@@ -19,11 +65,15 @@ const CODEX_ALIAS_MODELS = new Set([
   'gpt-5.1-codex-mini',
 ]);
 
-function asNonEmptyString(value) {
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function asNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-function isEnvTruthy(value) {
+function isEnvTruthy(value: unknown): boolean {
   const normalized = asNonEmptyString(value);
   if (!normalized) {
     return false;
@@ -33,7 +83,7 @@ function isEnvTruthy(value) {
   return lowered !== '0' && lowered !== 'false' && lowered !== 'no';
 }
 
-function chooseLaunchWorkspace({ activeWorkspacePath, workspacePaths }) {
+function chooseLaunchWorkspace({ activeWorkspacePath, workspacePaths }: LaunchWorkspaceInput): LaunchWorkspace {
   const activePath = asNonEmptyString(activeWorkspacePath);
   if (activePath) {
     return { workspacePath: activePath, source: 'active-workspace' };
@@ -48,15 +98,17 @@ function chooseLaunchWorkspace({ activeWorkspacePath, workspacePaths }) {
   return { workspacePath: null, source: 'none' };
 }
 
-function sanitizeProfileEnv(env) {
+function sanitizeProfileEnv(env: unknown): Record<string, string> {
   if (!env || typeof env !== 'object' || Array.isArray(env)) {
     return {};
   }
 
-  return Object.fromEntries(Object.entries(env).filter(([, value]) => typeof value === 'string' && value.trim()));
+  return Object.fromEntries(
+    Object.entries(env as Record<string, unknown>).filter(([, value]) => typeof value === 'string' && value.trim()),
+  ) as Record<string, string>;
 }
 
-function parseProfileFile(raw) {
+function parseProfileFile(raw: string): ProfileFile | null {
   try {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -77,13 +129,13 @@ function parseProfileFile(raw) {
       env: sanitizeProfileEnv(parsed.env),
       createdAt: asNonEmptyString(parsed.createdAt),
     };
-  } catch (err) {
-    console.debug('[openclaude] parseProfileFile failed:', err?.message || err);
+  } catch (err: unknown) {
+    console.debug('[openclaude] parseProfileFile failed:', err instanceof Error ? err.message : err);
     return null;
   }
 }
 
-function isLocalBaseUrl(baseUrl) {
+function isLocalBaseUrl(baseUrl: string | null): boolean {
   const normalized = asNonEmptyString(baseUrl);
   if (!normalized) {
     return false;
@@ -98,13 +150,13 @@ function isLocalBaseUrl(baseUrl) {
       hostname === '::1' ||
       hostname.endsWith('.local')
     );
-  } catch (err) {
-    console.debug('[openclaude] isLocalBaseUrl parse failed:', err?.message || err);
+  } catch (err: unknown) {
+    console.debug('[openclaude] isLocalBaseUrl parse failed:', err instanceof Error ? err.message : err);
     return false;
   }
 }
 
-function getHostname(baseUrl) {
+function getHostname(baseUrl: string | null): string | null {
   const normalized = asNonEmptyString(baseUrl);
   if (!normalized) {
     return null;
@@ -112,13 +164,13 @@ function getHostname(baseUrl) {
 
   try {
     return new URL(normalized).hostname.toLowerCase();
-  } catch (err) {
-    console.debug('[openclaude] getHostname parse failed:', err?.message || err);
+  } catch (err: unknown) {
+    console.debug('[openclaude] getHostname parse failed:', err instanceof Error ? err.message : err);
     return null;
   }
 }
 
-function resolveCommandCheckPath(command, workspacePath) {
+function resolveCommandCheckPath(command: string | null, workspacePath?: string | null): string | null {
   const normalized = asNonEmptyString(command);
   if (!normalized) {
     return null;
@@ -135,16 +187,16 @@ function resolveCommandCheckPath(command, workspacePath) {
   return workspacePath ? path.resolve(workspacePath, normalized) : path.resolve(normalized);
 }
 
-function getEnvValue(env, key) {
+function getEnvValue(env: EnvRecord, key: string): string {
   if (!env || typeof env !== 'object') {
     return '';
   }
 
   const matchedKey = Object.keys(env).find((candidate) => candidate.toUpperCase() === key);
-  return matchedKey ? env[matchedKey] : '';
+  return matchedKey ? (env[matchedKey] ?? '') : '';
 }
 
-function canAccessExecutable(filePath, platform) {
+function canAccessExecutable(filePath: string, platform: NodeJS.Platform): boolean {
   try {
     fs.accessSync(filePath, platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK);
     return true;
@@ -153,7 +205,7 @@ function canAccessExecutable(filePath, platform) {
   }
 }
 
-function findCommandPath(command, options = {}) {
+function findCommandPath(command: string | null, options: FindCommandOptions = {}): string | null {
   const normalized = asNonEmptyString(command);
   if (!normalized) {
     return null;
@@ -207,7 +259,7 @@ function findCommandPath(command, options = {}) {
   return null;
 }
 
-function isPathInsideWorkspace(filePath, workspacePath) {
+function isPathInsideWorkspace(filePath: string | null, workspacePath: string | null): boolean {
   const normalizedFilePath = asNonEmptyString(filePath);
   const normalizedWorkspacePath = asNonEmptyString(workspacePath);
   if (!normalizedFilePath || !normalizedWorkspacePath) {
@@ -224,7 +276,7 @@ function isPathInsideWorkspace(filePath, workspacePath) {
   return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
 }
 
-function hasCodexBaseUrl(baseUrl) {
+function hasCodexBaseUrl(baseUrl: string | null): boolean {
   const normalized = asNonEmptyString(baseUrl);
   if (!normalized) {
     return false;
@@ -233,7 +285,7 @@ function hasCodexBaseUrl(baseUrl) {
   return /chatgpt\.com\/backend-api\/codex/i.test(normalized);
 }
 
-function hasCodexAlias(model) {
+function hasCodexAlias(model: string | null): boolean {
   const normalized = asNonEmptyString(model);
   if (!normalized) {
     return false;
@@ -243,7 +295,7 @@ function hasCodexAlias(model) {
   return CODEX_ALIAS_MODELS.has(baseModel);
 }
 
-function getOpenAICompatibleLabel(baseUrl, model) {
+function getOpenAICompatibleLabel(baseUrl: string | null, model: string | null): string {
   const normalizedBaseUrl = (asNonEmptyString(baseUrl) || '').toLowerCase();
   const normalizedModel = (asNonEmptyString(model) || '').toLowerCase();
   const hostname = getHostname(baseUrl);
@@ -305,7 +357,7 @@ function getOpenAICompatibleLabel(baseUrl, model) {
   return 'OpenAI-compatible';
 }
 
-function buildProviderState(label, detail, source) {
+function buildProviderState(label: string, detail: string, source: ProviderSource): ProviderState {
   return {
     label,
     detail,
@@ -313,7 +365,7 @@ function buildProviderState(label, detail, source) {
   };
 }
 
-function getDetail(env, fallback) {
+function getDetail(env: EnvRecord, fallback: string): string {
   return (
     asNonEmptyString(env.OPENAI_MODEL) ||
     asNonEmptyString(env.GEMINI_MODEL) ||
@@ -323,7 +375,7 @@ function getDetail(env, fallback) {
   );
 }
 
-function describeOpenAICompatible(env, source) {
+function describeOpenAICompatible(env: EnvRecord, source: ProviderSource): ProviderState {
   const baseUrl = asNonEmptyString(env.OPENAI_BASE_URL) || asNonEmptyString(env.OPENAI_API_BASE);
   const model = asNonEmptyString(env.OPENAI_MODEL);
   const label = getOpenAICompatibleLabel(baseUrl, model);
@@ -335,7 +387,7 @@ function describeOpenAICompatible(env, source) {
   return buildProviderState(label, model || baseUrl || 'OpenAI-compatible runtime', source);
 }
 
-function describeSavedProfile(profile) {
+function describeSavedProfile(profile: ProfileFile): ProviderState {
   switch (profile.profile) {
     case 'ollama':
       return buildProviderState('Ollama', getDetail(profile.env, 'saved profile'), 'profile');
@@ -351,7 +403,7 @@ function describeSavedProfile(profile) {
   }
 }
 
-function describeProviderState({ shimEnabled, env, profile }) {
+function describeProviderState({ shimEnabled, env, profile }: DescribeProviderInput): ProviderState {
   if (profile) {
     return describeSavedProfile(profile);
   }
@@ -387,7 +439,11 @@ function describeProviderState({ shimEnabled, env, profile }) {
   return buildProviderState('Unknown', 'no saved profile or provider env detected', 'unknown');
 }
 
-module.exports = {
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+export {
   chooseLaunchWorkspace,
   describeProviderState,
   findCommandPath,
