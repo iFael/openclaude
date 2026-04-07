@@ -34,6 +34,8 @@
     "dev:grpc:cli": "bun run scripts/grpc-cli.ts",
     "start": "node dist/cli.mjs",
     "test": "bun test",
+    "lint": "npx @biomejs/biome check vscode-extension/",
+    "lint:fix": "npx @biomejs/biome check --write vscode-extension/",
     "test:coverage": "bun test --coverage --coverage-reporter=lcov --coverage-dir=coverage --max-concurrency=1 && bun run scripts/render-coverage-heatmap.ts",
     "test:coverage:ui": "bun run scripts/render-coverage-heatmap.ts",
     "security:pr-scan": "bun run scripts/pr-intent-scan.ts",

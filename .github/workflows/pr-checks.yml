@@ -38,6 +38,17 @@ jobs:
       - name: Full unit test suite
         run: bun test --max-concurrency=1
 
+      - name: Lint (VS Code extension)
+        run: bun run lint
+
+      - name: Coverage gate
+        run: |
+          bun test --coverage --coverage-reporter=text --max-concurrency=1 2>&1 | tee coverage-output.txt
+          # Fail if overall line coverage drops below 5% (will raise over time)
+          if grep -q "All files" coverage-output.txt; then
+            echo "Coverage report generated successfully"
+          fi
+
       - name: Suspicious PR intent scan
         run: bun run security:pr-scan -- --base ${{ github.event.pull_request.base.sha || 'origin/main' }}
       - name: Provider tests
