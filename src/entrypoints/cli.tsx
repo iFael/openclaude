@@ -70,66 +70,44 @@ async function main(): Promise<void> {
 
   // VS Code proxy integration.
   //
-  // Path A — SDK terminal (has ANTHROPIC_BASE_URL + CLAUDECODE): persist
-  // credentials to ~/.claude/proxy-credentials.json and fix IPv4.
+  // The OpenClaude VS Code extension runs its own LM API proxy and writes
+  // credentials to ~/.claude/proxy-credentials.json with source marker.
+  // The environmentVariableCollection injects env vars into terminals, but
+  // those can be stale after a VS Code reload/restart.
   //
-  // Path B — Any other terminal: if ~/.claude/proxy-credentials.json exists,
-  // load credentials unconditionally. No probing, no netstat — if the proxy
-  // is dead the error surfaces naturally on the first API call.
+  // Strategy: always prefer the credentials file when it has our LM proxy
+  // marker (source === "openclaude-lm-proxy"), as it has the freshest port.
+  // Fall back to env vars only when the file doesn't exist.
   {
-    const { isVsCodeProxy } = await import('../utils/auth.js');
-    if (isVsCodeProxy() && process.env.ANTHROPIC_BASE_URL) {
-      // --- Path A: SDK terminal — persist credentials -----------------------
-      const { writeFileSync, readFileSync: readFs } = await import('fs');
-      const { join } = await import('path');
-      const { homedir } = await import('os');
-      const credFile = join(homedir(), '.claude', 'proxy-credentials.json');
-      // Don't overwrite if the OpenClaude LM proxy owns the file
-      let lmProxyOwns = false;
-      try {
-        const existing = JSON.parse(readFs(credFile, 'utf-8'));
-        lmProxyOwns = existing.source === 'openclaude-lm-proxy';
-      } catch { /* file missing or invalid */ }
-      if (!lmProxyOwns) {
-        try {
-          writeFileSync(
-            credFile,
-            JSON.stringify({
-              baseUrl: process.env.ANTHROPIC_BASE_URL,
-              apiKey: process.env.ANTHROPIC_API_KEY,
-              timestamp: Date.now(),
-            }),
-          );
-        } catch { /* best-effort */ }
-      }
+    const { readFileSync: readFs, writeFileSync } = await import('fs');
+    const { join } = await import('path');
+    const { homedir } = await import('os');
+    const credFile = join(homedir(), '.claude', 'proxy-credentials.json');
 
-      // IPv4 fix: Node.js fetch resolves "localhost" to IPv6 (::1),
-      // but the VS Code proxy only listens on 127.0.0.1.
+    let applied = false;
+
+    // Try to load credentials from the file first — always freshest source
+    try {
+      const raw = readFs(credFile, 'utf-8');
+      const creds = JSON.parse(raw);
+      if (creds.baseUrl && creds.apiKey) {
+        process.env.ANTHROPIC_BASE_URL = creds.baseUrl.replace(
+          '://localhost',
+          '://127.0.0.1',
+        );
+        process.env.ANTHROPIC_API_KEY = creds.apiKey;
+        process.env.CLAUDECODE = '1';
+        process.env.CLAUDE_CODE_ENTRYPOINT = 'sdk-ts';
+        applied = true;
+      }
+    } catch { /* no saved credentials */ }
+
+    // If file didn't provide credentials, apply IPv4 fix on existing env vars
+    if (!applied && process.env.ANTHROPIC_BASE_URL) {
       process.env.ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL.replace(
         '://localhost',
         '://127.0.0.1',
       );
-    } else if (!process.env.ANTHROPIC_BASE_URL) {
-      // --- Path B: Load saved proxy credentials ----------------------------
-      const { readFileSync } = await import('fs');
-      const { join } = await import('path');
-      const { homedir } = await import('os');
-      try {
-        const raw = readFileSync(
-          join(homedir(), '.claude', 'proxy-credentials.json'),
-          'utf-8',
-        );
-        const creds = JSON.parse(raw);
-        if (creds.baseUrl && creds.apiKey) {
-          process.env.ANTHROPIC_BASE_URL = creds.baseUrl.replace(
-            '://localhost',
-            '://127.0.0.1',
-          );
-          process.env.ANTHROPIC_API_KEY = creds.apiKey;
-          process.env.CLAUDECODE = '1';
-          process.env.CLAUDE_CODE_ENTRYPOINT = 'sdk-ts';
-        }
-      } catch { /* no saved credentials — fall through to normal flow */ }
     }
   }
 
