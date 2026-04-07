@@ -12,6 +12,7 @@ const {
   resolveCommandCheckPath,
 } = require('./state');
 const { buildControlCenterViewModel } = require('./presentation');
+const { startProxy } = require('./proxy');
 
 const OPENCLAUDE_REPO_URL = 'https://github.com/Gitlawb/openclaude';
 const OPENCLAUDE_SETUP_URL = 'https://github.com/Gitlawb/openclaude/blob/main/README.md#quick-start';
@@ -1037,10 +1038,131 @@ class OpenClaudeControlCenterProvider {
   }
 }
 
+const PROXY_CREDENTIALS_FILE = 'proxy-credentials.json';
+
+/**
+ * Set to true once the own LM proxy starts. When active, the file-watcher
+ * must not downgrade envCollection to SDK-proxy credentials.
+ */
+let ownProxyActive = false;
+
+/**
+ * Read ~/.claude/proxy-credentials.json and inject env vars into all
+ * integrated terminals via environmentVariableCollection.
+ * Called on activation and whenever the file changes.
+ *
+ * If the own LM proxy is running, only credentials produced by us
+ * (source === 'openclaude-lm-proxy') are accepted — SDK hook writes
+ * are silently ignored to prevent race-condition downgrades.
+ */
+function syncProxyCredentials(envCollection) {
+  const credPath = path.join(
+    process.env.HOME || process.env.USERPROFILE || '',
+    '.claude',
+    PROXY_CREDENTIALS_FILE,
+  );
+
+  try {
+    if (!fs.existsSync(credPath)) {
+      // No credentials file — clear any previously injected vars
+      envCollection.delete('ANTHROPIC_BASE_URL');
+      envCollection.delete('ANTHROPIC_API_KEY');
+      envCollection.delete('CLAUDECODE');
+      envCollection.delete('CLAUDE_CODE_ENTRYPOINT');
+      return;
+    }
+
+    const raw = fs.readFileSync(credPath, 'utf8');
+    const creds = JSON.parse(raw);
+
+    // If our own LM proxy is active, ignore file changes from other sources
+    if (ownProxyActive && creds.source !== 'openclaude-lm-proxy') {
+      return;
+    }
+
+    if (creds.baseUrl && creds.apiKey) {
+      // Normalize localhost → 127.0.0.1 to avoid IPv6 issues
+      const baseUrl = String(creds.baseUrl).replace('://localhost', '://127.0.0.1');
+      envCollection.replace('ANTHROPIC_BASE_URL', baseUrl);
+      envCollection.replace('ANTHROPIC_API_KEY', creds.apiKey);
+      envCollection.replace('CLAUDECODE', '1');
+      envCollection.replace('CLAUDE_CODE_ENTRYPOINT', 'sdk-ts');
+    }
+  } catch {
+    // Best-effort — don't crash if file is malformed or unreadable
+  }
+}
+
 /**
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
+  // --- Own LM API proxy (Alternative 2) ---
+  // Start a local HTTP proxy backed by vscode.lm — no dependency on
+  // Claude Code session or SessionStart hooks.
+  const envCollection = context.environmentVariableCollection;
+  envCollection.persistent = true;
+
+  // Also keep the file-watcher fallback (Alternative 1) for when the
+  // LM API proxy isn't available (e.g., no Copilot models).
+  syncProxyCredentials(envCollection);
+  const credPath = path.join(
+    process.env.HOME || process.env.USERPROFILE || '',
+    '.claude',
+    PROXY_CREDENTIALS_FILE,
+  );
+  try {
+    fs.watchFile(credPath, { interval: 3000 }, () => {
+      syncProxyCredentials(envCollection);
+    });
+    context.subscriptions.push({
+      dispose() { try { fs.unwatchFile(credPath); } catch {} },
+    });
+  } catch { /* best-effort */ }
+
+  // Launch the own proxy asynchronously
+  startProxy().then(proxy => {
+    const { port, apiKey } = proxy;
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    // Mark our proxy as active so the file-watcher ignores SDK credentials
+    ownProxyActive = true;
+
+    // Inject into all terminals — overrides the file-watcher values
+    envCollection.replace('ANTHROPIC_BASE_URL', baseUrl);
+    envCollection.replace('ANTHROPIC_API_KEY', apiKey);
+    envCollection.replace('CLAUDECODE', '1');
+    envCollection.replace('CLAUDE_CODE_ENTRYPOINT', 'sdk-ts');
+
+    // Also write to credentials file so the CLI can use it directly
+    try {
+      const claudeDir = path.join(
+        process.env.HOME || process.env.USERPROFILE || '',
+        '.claude',
+      );
+      if (!fs.existsSync(claudeDir)) fs.mkdirSync(claudeDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(claudeDir, PROXY_CREDENTIALS_FILE),
+        JSON.stringify({ baseUrl, apiKey, timestamp: Date.now(), source: 'openclaude-lm-proxy' }),
+      );
+    } catch { /* best-effort */ }
+
+    context.subscriptions.push({ dispose() { proxy.dispose(); } });
+
+    vscode.window.setStatusBarMessage(
+      `$(check) OpenClaude proxy on port ${port}`,
+      5000,
+    );
+  }).catch(err => {
+    // LM proxy failed — file-watcher fallback is still active
+    const msg = err instanceof Error ? err.message : String(err);
+    vscode.window.setStatusBarMessage(
+      `$(warning) OpenClaude LM proxy failed: ${msg}`,
+      8000,
+    );
+  });
+
+  // --- Control Center and commands ---
   const provider = new OpenClaudeControlCenterProvider();
   const refreshProvider = () => {
     void provider.refresh();
