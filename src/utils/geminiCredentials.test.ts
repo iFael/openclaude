@@ -6,6 +6,13 @@ const originalEnv = { ...process.env }
 let storageState: MockStorageData = {}
 
 async function importFreshModule() {
+  // Restore first so that stale mocks from prior tests (or our own afterEach)
+  // don't interfere with the fresh mock registration below.
+  mock.restore()
+
+  // Ensure bare-mode is off regardless of env contamination from other tests.
+  delete process.env.CLAUDE_CODE_SIMPLE
+
   mock.module('./secureStorage/index.js', () => ({
     getSecureStorage: () => ({
       name: 'mock-secure-storage',
