@@ -68,6 +68,71 @@ async function main(): Promise<void> {
     }
   }
 
+  // VS Code proxy integration.
+  //
+  // Path A — SDK terminal (has ANTHROPIC_BASE_URL + CLAUDECODE): persist
+  // credentials to ~/.claude/proxy-credentials.json and fix IPv4.
+  //
+  // Path B — Any other terminal: if ~/.claude/proxy-credentials.json exists,
+  // load credentials unconditionally. No probing, no netstat — if the proxy
+  // is dead the error surfaces naturally on the first API call.
+  {
+    const { isVsCodeProxy } = await import('../utils/auth.js');
+    if (isVsCodeProxy() && process.env.ANTHROPIC_BASE_URL) {
+      // --- Path A: SDK terminal — persist credentials -----------------------
+      const { writeFileSync, readFileSync: readFs } = await import('fs');
+      const { join } = await import('path');
+      const { homedir } = await import('os');
+      const credFile = join(homedir(), '.claude', 'proxy-credentials.json');
+      // Don't overwrite if the OpenClaude LM proxy owns the file
+      let lmProxyOwns = false;
+      try {
+        const existing = JSON.parse(readFs(credFile, 'utf-8'));
+        lmProxyOwns = existing.source === 'openclaude-lm-proxy';
+      } catch { /* file missing or invalid */ }
+      if (!lmProxyOwns) {
+        try {
+          writeFileSync(
+            credFile,
+            JSON.stringify({
+              baseUrl: process.env.ANTHROPIC_BASE_URL,
+              apiKey: process.env.ANTHROPIC_API_KEY,
+              timestamp: Date.now(),
+            }),
+          );
+        } catch { /* best-effort */ }
+      }
+
+      // IPv4 fix: Node.js fetch resolves "localhost" to IPv6 (::1),
+      // but the VS Code proxy only listens on 127.0.0.1.
+      process.env.ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL.replace(
+        '://localhost',
+        '://127.0.0.1',
+      );
+    } else if (!process.env.ANTHROPIC_BASE_URL) {
+      // --- Path B: Load saved proxy credentials ----------------------------
+      const { readFileSync } = await import('fs');
+      const { join } = await import('path');
+      const { homedir } = await import('os');
+      try {
+        const raw = readFileSync(
+          join(homedir(), '.claude', 'proxy-credentials.json'),
+          'utf-8',
+        );
+        const creds = JSON.parse(raw);
+        if (creds.baseUrl && creds.apiKey) {
+          process.env.ANTHROPIC_BASE_URL = creds.baseUrl.replace(
+            '://localhost',
+            '://127.0.0.1',
+          );
+          process.env.ANTHROPIC_API_KEY = creds.apiKey;
+          process.env.CLAUDECODE = '1';
+          process.env.CLAUDE_CODE_ENTRYPOINT = 'sdk-ts';
+        }
+      } catch { /* no saved credentials — fall through to normal flow */ }
+    }
+  }
+
   {
     const { enableConfigs } = await import('../utils/config.js')
     enableConfigs()
