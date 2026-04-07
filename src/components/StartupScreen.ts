@@ -6,6 +6,7 @@
  */
 
 import { isLocalProviderUrl } from '../services/api/providerConfig.js'
+import { isVsCodeProxy } from '../utils/auth.js'
 import { getLocalOpenAICompatibleProviderLabel } from '../utils/providerDiscovery.js'
 
 declare const MACRO: { VERSION: string; DISPLAY_VERSION?: string }
@@ -141,7 +142,11 @@ function detectProvider(): { name: string; model: string; baseUrl: string; isLoc
 
   // Default: Anthropic
   const model = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-6'
-  return { name: 'Anthropic', model, baseUrl: 'https://api.anthropic.com', isLocal: false }
+  const baseUrl = process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com'
+  if (isVsCodeProxy()) {
+    return { name: 'VS Code Proxy (Copilot Pro+)', model, baseUrl, isLocal: true }
+  }
+  return { name: 'Anthropic', model, baseUrl, isLocal: false }
 }
 
 // ─── Box drawing ──────────────────────────────────────────────────────────────
