@@ -112,6 +112,20 @@ export async function showSetupScreens(root: Root, permissionMode: PermissionMod
   const config = getGlobalConfig();
   let onboardingShown = false;
 
+  // VS Code proxy: auth is fully handled by the VS Code extension — skip
+  // the interactive onboarding flow entirely (theme, OAuth, security, etc.)
+  // and mark it complete so it never re-triggers.
+  {
+    const { isVsCodeProxy } = await import('./utils/auth.js');
+    if (isVsCodeProxy()) {
+      if (!config.hasCompletedOnboarding) {
+        completeOnboarding();
+      }
+      // fall through to trust dialog and permission mode below
+      return false;
+    }
+  }
+
   // Skip onboarding dialog for third-party providers (no Anthropic account needed)
   if (usesAnthropicSetup && (!config.theme || !config.hasCompletedOnboarding) // always show onboarding at least once
   ) {
