@@ -70,44 +70,44 @@ async function main(): Promise<void> {
 
   // VS Code proxy integration.
   //
-  // The OpenClaude VS Code extension runs its own LM API proxy and writes
-  // credentials to ~/.claude/proxy-credentials.json with source marker.
-  // The environmentVariableCollection injects env vars into terminals, but
-  // those can be stale after a VS Code reload/restart.
+  // The Claude Code extension injects ANTHROPIC_BASE_URL and
+  // ANTHROPIC_API_KEY into terminals via environmentVariableCollection.
+  // These point to the SDK proxy (ClaudeLanguageModelServer) which does
+  // NOT consume Copilot premium requests.
   //
-  // Strategy: always prefer the credentials file when it has our LM proxy
-  // marker (source === "openclaude-lm-proxy"), as it has the freshest port.
-  // Fall back to env vars only when the file doesn't exist.
+  // Strategy: prefer env vars already set by Claude Code. Only fall back
+  // to the credentials file when env vars are absent (e.g. running
+  // outside VS Code integrated terminal).
   {
-    const { readFileSync: readFs, writeFileSync } = await import('fs');
+    const { readFileSync: readFs } = await import('fs');
     const { join } = await import('path');
     const { homedir } = await import('os');
-    const credFile = join(homedir(), '.claude', 'proxy-credentials.json');
 
-    let applied = false;
-
-    // Try to load credentials from the file first — always freshest source
-    try {
-      const raw = readFs(credFile, 'utf-8');
-      const creds = JSON.parse(raw);
-      if (creds.baseUrl && creds.apiKey) {
-        process.env.ANTHROPIC_BASE_URL = creds.baseUrl.replace(
-          '://localhost',
-          '://127.0.0.1',
-        );
-        process.env.ANTHROPIC_API_KEY = creds.apiKey;
-        process.env.CLAUDECODE = '1';
-        process.env.CLAUDE_CODE_ENTRYPOINT = 'sdk-ts';
-        applied = true;
-      }
-    } catch { /* no saved credentials */ }
-
-    // If file didn't provide credentials, apply IPv4 fix on existing env vars
-    if (!applied && process.env.ANTHROPIC_BASE_URL) {
+    // If Claude Code already injected env vars, just apply the IPv4 fix
+    if (process.env.ANTHROPIC_BASE_URL && process.env.ANTHROPIC_API_KEY) {
       process.env.ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL.replace(
         '://localhost',
         '://127.0.0.1',
       );
+    } else {
+      // Fallback: try the credentials file (for terminals outside VS Code)
+      const credFile = join(homedir(), '.claude', 'sdk-proxy-credentials.json');
+      try {
+        const raw = readFs(credFile, 'utf-8');
+        const creds = JSON.parse(raw);
+        if (creds.baseUrl && creds.apiKey) {
+          process.env.ANTHROPIC_BASE_URL = creds.baseUrl.replace(
+            '://localhost',
+            '://127.0.0.1',
+          );
+          process.env.ANTHROPIC_API_KEY = creds.apiKey;
+          process.env.CLAUDECODE = '1';
+          process.env.CLAUDE_CODE_ENTRYPOINT = 'sdk-ts';
+        }
+      } catch (err) {
+        // Credentials file missing or malformed — expected outside VS Code
+        if (process.env.DEBUG) console.debug('[openclaude] sdk-proxy credentials read failed:', (err as Error)?.message || err);
+      }
     }
   }
 

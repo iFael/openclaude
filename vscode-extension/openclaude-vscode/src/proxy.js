@@ -42,7 +42,7 @@ async function startProxy() {
 
     // --- Model diagnostics (no auth required) ---
     if (req.method === 'GET' && pathname === '/v1/models') {
-      const models = activeModels.map(m => ({
+      const models = activeModels.map((m) => ({
         id: m.id,
         name: m.name || m.id,
         vendor: m.vendor || 'unknown',
@@ -56,15 +56,40 @@ async function startProxy() {
     }
 
     // --- Auth check ---
-    const incomingKey =
-      req.headers['x-api-key'] ||
-      (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    const incomingKey = req.headers['x-api-key'] || (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
     if (incomingKey !== apiKey) {
       res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        type: 'error',
-        error: { type: 'authentication_error', message: 'Invalid API key' },
-      }));
+      res.end(
+        JSON.stringify({
+          type: 'error',
+          error: { type: 'authentication_error', message: 'Invalid API key' },
+        }),
+      );
+      return;
+    }
+
+    // --- POST /v1/messages/count_tokens ---
+    // The Anthropic SDK calls this endpoint to count tokens. Instead of
+    // letting it 404 (which triggers an expensive fallback that makes a
+    // real messages.create call with max_tokens:1), return a local estimate.
+    // This saves 1-3 premium requests per turn.
+    if (req.method === 'POST' && pathname === '/v1/messages/count_tokens') {
+      try {
+        const body = await readBody(req);
+        const request = JSON.parse(body);
+        const estimate = estimateTokenCount(request);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ input_tokens: estimate }));
+      } catch (err) {
+        console.debug('[openclaude-proxy] count_tokens error:', err?.message || err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            type: 'error',
+            error: { type: 'api_error', message: 'Internal proxy error during token counting' },
+          }),
+        );
+      }
       return;
     }
 
@@ -75,22 +100,27 @@ async function startProxy() {
         const request = JSON.parse(body);
         await handleMessages(request, activeModels, res);
       } catch (err) {
+        console.debug('[openclaude-proxy] messages error:', err?.message || err);
         if (!res.headersSent) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
         }
-        res.end(JSON.stringify({
-          type: 'error',
-          error: { type: 'api_error', message: String(err?.message || err) },
-        }));
+        res.end(
+          JSON.stringify({
+            type: 'error',
+            error: { type: 'api_error', message: 'Internal proxy error during message handling' },
+          }),
+        );
       }
       return;
     }
 
     res.writeHead(404, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      type: 'error',
-      error: { type: 'not_found_error', message: `Not found: ${req.method} ${pathname}` },
-    }));
+    res.end(
+      JSON.stringify({
+        type: 'error',
+        error: { type: 'not_found_error', message: `Not found: ${req.method} ${pathname}` },
+      }),
+    );
   });
 
   return new Promise((resolve, reject) => {
@@ -120,10 +150,11 @@ async function selectClaudeModels() {
     const allModels = await vscode.lm.selectChatModels();
     // Prefer Claude models
     const claude = allModels.filter(
-      m => /claude/i.test(m.id) || /claude/i.test(m.name || '') || /claude/i.test(m.family || ''),
+      (m) => /claude/i.test(m.id) || /claude/i.test(m.name || '') || /claude/i.test(m.family || ''),
     );
     return claude.length > 0 ? claude : allModels;
-  } catch {
+  } catch (err) {
+    console.debug('[openclaude-proxy] selectClaudeModels failed:', err?.message || err);
     return [];
   }
 }
@@ -133,13 +164,15 @@ async function selectClaudeModels() {
  * E.g. "claude-opus-4.6[1m]" → "claude-opus-4.6"
  */
 function normalizeModelName(name) {
-  return (name || '')
-    // Strip ANSI escape sequences (e.g. \x1b[1m)
-    .replace(/\x1b\[[0-9;]*m/g, '')
-    // Strip leftover bracket suffixes like [1m]
-    .replace(/\[[^\]]*\]/g, '')
-    .trim()
-    .toLowerCase();
+  return (
+    (name || '')
+      // Strip ANSI escape sequences (e.g. \x1b[1m)
+      .replace(/\x1b\[[0-9;]*m/g, '')
+      // Strip leftover bracket suffixes like [1m]
+      .replace(/\[[^\]]*\]/g, '')
+      .trim()
+      .toLowerCase()
+  );
 }
 
 /**
@@ -152,12 +185,12 @@ function pickModel(models, requestedModel) {
   const lower = normalizeModelName(requestedModel);
 
   // Exact id match
-  const exact = models.find(m => normalizeModelName(m.id) === lower);
+  const exact = models.find((m) => normalizeModelName(m.id) === lower);
   if (exact) return exact;
 
   // Partial match on id, name, or family
   const partial = models.find(
-    m =>
+    (m) =>
       normalizeModelName(m.id).includes(lower) ||
       normalizeModelName(m.name).includes(lower) ||
       normalizeModelName(m.family).includes(lower),
@@ -168,7 +201,7 @@ function pickModel(models, requestedModel) {
   for (const hint of ['opus', 'sonnet', 'haiku']) {
     if (lower.includes(hint)) {
       const match = models.find(
-        m =>
+        (m) =>
           normalizeModelName(m.id).includes(hint) ||
           normalizeModelName(m.name).includes(hint) ||
           normalizeModelName(m.family).includes(hint),
@@ -178,7 +211,7 @@ function pickModel(models, requestedModel) {
   }
 
   // Fallback to first Claude model, then first model overall
-  const claude = models.find(m => /claude/i.test(m.id) || /claude/i.test(m.name || ''));
+  const claude = models.find((m) => /claude/i.test(m.id) || /claude/i.test(m.name || ''));
   return claude || models[0];
 }
 
@@ -190,10 +223,12 @@ async function handleMessages(request, models, res) {
   const model = pickModel(models, request.model);
   if (!model) {
     res.writeHead(503, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      type: 'error',
-      error: { type: 'api_error', message: 'No language models available. Is GitHub Copilot active?' },
-    }));
+    res.end(
+      JSON.stringify({
+        type: 'error',
+        error: { type: 'api_error', message: 'No language models available. Is GitHub Copilot active?' },
+      }),
+    );
     return;
   }
 
@@ -215,8 +250,8 @@ async function handleMessages(request, models, res) {
     const ToolCtor = vscode.LanguageModelChatTool ?? vscode.LanguageModelToolInformation;
     if (ToolCtor) {
       const clientTools = request.tools
-        .filter(t => t.type !== 'web_search_20250305') // skip server-side tools
-        .map(t => {
+        .filter((t) => t.type !== 'web_search_20250305') // skip server-side tools
+        .map((t) => {
           if (t.input_schema) {
             try {
               return new ToolCtor(t.name, t.description || '', t.input_schema);
@@ -235,7 +270,7 @@ async function handleMessages(request, models, res) {
 
   // Send request with cancellation support
   const cts = new vscode.CancellationTokenSource();
-  req_on_close(res, () => cts.cancel());
+  onRequestClose(res, () => cts.cancel());
 
   let response;
   try {
@@ -244,10 +279,12 @@ async function handleMessages(request, models, res) {
     // Handle consent dialog or other LM API errors
     if (err instanceof vscode.LanguageModelError) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        type: 'error',
-        error: { type: 'api_error', message: `Language Model error: ${err.message}` },
-      }));
+      res.end(
+        JSON.stringify({
+          type: 'error',
+          error: { type: 'api_error', message: `Language Model error: ${err.message}` },
+        }),
+      );
       return;
     }
     throw err;
@@ -257,7 +294,7 @@ async function handleMessages(request, models, res) {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
+    Connection: 'keep-alive',
   });
 
   const msgId = `msg_${crypto.randomBytes(12).toString('hex')}`;
@@ -311,7 +348,7 @@ async function handleMessages(request, models, res) {
           index: contentIndex,
           delta: { type: 'text_delta', text: part.value },
         });
-        outputTokenEstimate += Math.ceil(part.value.length / 4);
+        outputTokenEstimate += Math.ceil(part.value.length / CHARS_PER_TOKEN);
       } else if (part instanceof vscode.LanguageModelToolCallPart) {
         // Close any open text block
         if (currentBlockType !== null) {
@@ -320,9 +357,7 @@ async function handleMessages(request, models, res) {
         }
         currentBlockType = 'tool_use';
 
-        const toolInput = typeof part.input === 'string'
-          ? JSON.parse(part.input)
-          : (part.input || {});
+        const toolInput = typeof part.input === 'string' ? JSON.parse(part.input) : part.input || {};
 
         writeSSE(res, 'content_block_start', {
           type: 'content_block_start',
@@ -399,9 +434,7 @@ function translateMessages(messages, systemPrompt) {
 
   // System prompt as a User message prefix (LM API convention)
   if (systemPrompt) {
-    const text = typeof systemPrompt === 'string'
-      ? systemPrompt
-      : systemPrompt.map(b => b.text || '').join('\n');
+    const text = typeof systemPrompt === 'string' ? systemPrompt : systemPrompt.map((b) => b.text || '').join('\n');
     if (text) {
       lmMessages.push(vscode.LanguageModelChatMessage.User(text));
     }
@@ -418,9 +451,10 @@ function translateMessages(messages, systemPrompt) {
       if (Array.isArray(msg.content)) {
         for (const block of msg.content) {
           if (block.type === 'tool_result') {
-            const resultText = typeof block.content === 'string'
-              ? block.content
-              : (block.content || []).map(b => b.text || '').join('\n');
+            const resultText =
+              typeof block.content === 'string'
+                ? block.content
+                : (block.content || []).map((b) => b.text || '').join('\n');
             lmMessages.push(
               vscode.LanguageModelChatMessage.User(
                 new vscode.LanguageModelToolResultPart(block.tool_use_id, [
@@ -443,11 +477,7 @@ function translateMessages(messages, systemPrompt) {
           if (block.type === 'tool_use') {
             lmMessages.push(
               vscode.LanguageModelChatMessage.Assistant([
-                new vscode.LanguageModelToolCallPart(
-                  block.id,
-                  block.name,
-                  block.input || {},
-                ),
+                new vscode.LanguageModelToolCallPart(block.id, block.name, block.input || {}),
               ]),
             );
           }
@@ -463,8 +493,8 @@ function extractTextContent(content) {
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) {
     return content
-      .filter(b => b.type === 'text')
-      .map(b => b.text)
+      .filter((b) => b.type === 'text')
+      .map((b) => b.text)
       .join('\n');
   }
   return '';
@@ -474,21 +504,109 @@ function extractTextContent(content) {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Estimate token count from an Anthropic messages request body.
+ * Uses ~4 chars per token heuristic (same as the CLI's roughTokenCountEstimation).
+ * This avoids the expensive fallback that makes a real messages.create call.
+ */
+function estimateTokenCount(request) {
+  let chars = 0;
+
+  // System prompt
+  if (request.system) {
+    if (typeof request.system === 'string') {
+      chars += request.system.length;
+    } else if (Array.isArray(request.system)) {
+      for (const block of request.system) {
+        chars += (block.text || '').length;
+      }
+    }
+  }
+
+  // Messages
+  if (Array.isArray(request.messages)) {
+    for (const msg of request.messages) {
+      if (typeof msg.content === 'string') {
+        chars += msg.content.length;
+      } else if (Array.isArray(msg.content)) {
+        for (const block of msg.content) {
+          if (block.type === 'text') {
+            chars += (block.text || '').length;
+          } else if (block.type === 'tool_use') {
+            chars += JSON.stringify(block.input || {}).length;
+            chars += (block.name || '').length;
+          } else if (block.type === 'tool_result') {
+            if (typeof block.content === 'string') {
+              chars += block.content.length;
+            } else if (Array.isArray(block.content)) {
+              for (const sub of block.content) {
+                chars += (sub.text || '').length;
+              }
+            }
+          } else if (block.type === 'thinking') {
+            chars += (block.thinking || '').length;
+          }
+        }
+      }
+    }
+  }
+
+  // Tools definitions
+  if (Array.isArray(request.tools)) {
+    for (const tool of request.tools) {
+      chars += (tool.name || '').length;
+      chars += (tool.description || '').length;
+      chars += JSON.stringify(tool.input_schema || {}).length;
+    }
+  }
+
+  // ~CHARS_PER_TOKEN chars per token, add overhead for message framing
+  return Math.ceil((chars / CHARS_PER_TOKEN) * TOKEN_OVERHEAD_MULTIPLIER);
+}
+
 function writeSSE(res, event, data) {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
+const MAX_BODY_BYTES = 1024 * 1024; // 1 MB — generous for any Anthropic messages payload.
+const CHARS_PER_TOKEN = 4;
+const TOKEN_OVERHEAD_MULTIPLIER = 1.1;
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
-    req.on('data', chunk => { body += chunk; });
+    let bytes = 0;
+    req.on('data', (chunk) => {
+      bytes += chunk.length;
+      if (bytes > MAX_BODY_BYTES) {
+        req.destroy();
+        reject(new Error(`Request body exceeds ${MAX_BODY_BYTES} bytes`));
+        return;
+      }
+      body += chunk;
+    });
     req.on('end', () => resolve(body));
     req.on('error', reject);
   });
 }
 
-function req_on_close(res, fn) {
+function onRequestClose(res, fn) {
   res.on('close', fn);
 }
 
-module.exports = { startProxy };
+module.exports = {
+  startProxy,
+  // Exported for testing only:
+  _test: {
+    normalizeModelName,
+    pickModel,
+    extractTextContent,
+    estimateTokenCount,
+    writeSSE,
+    readBody,
+    translateMessages,
+    MAX_BODY_BYTES,
+    CHARS_PER_TOKEN,
+    TOKEN_OVERHEAD_MULTIPLIER,
+  },
+};
