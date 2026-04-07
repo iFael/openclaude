@@ -1,38 +1,47 @@
-# OpenClaude — Guia de Configuracao com VS Code Proxy (Copilot Pro+)
+# OpenClaude — Guia Completo de Configuracao com VS Code Proxy (Copilot Pro+)
 
-Este documento explica como configurar o OpenClaude para funcionar com o proxy do VS Code,
-permitindo usar modelos Claude no terminal sem gastar tokens ou precisar de API key da Anthropic.
-O acesso e feito via GitHub Copilot Pro+.
+Este documento explica como configurar o OpenClaude do zero em qualquer PC,
+usando o proxy do VS Code para acessar modelos Claude sem gastar tokens e sem
+precisar de API key da Anthropic. O acesso e feito via GitHub Copilot Pro+.
 
 ---
 
 ## Como funciona
 
-A arquitetura tem 3 componentes que trabalham juntos:
+A arquitetura tem 4 componentes que trabalham juntos:
 
 1. **Claude Code** (extensao oficial da Anthropic no VS Code)
    - Inicia um proxy HTTP local (ClaudeLanguageModelServer) numa porta aleatoria
    - Usa a API `vscode.lm.selectChatModels()` para acessar modelos Claude via Copilot
-   - Quando uma sessao de chat comeca, um hook SessionStart grava as credenciais
-     do proxy em `~/.claude/sdk-proxy-credentials.json`
+   - A porta muda toda vez que uma nova sessao comeca
 
-2. **openclaude-vscode** (extensao complementar)
+2. **Hook SessionStart** (script customizado: `openclaude-proxy-seed.js`)
+   - Roda automaticamente quando uma sessao do Claude Code inicia
+   - Captura as variaveis ANTHROPIC_BASE_URL e ANTHROPIC_API_KEY do ambiente
+   - Grava essas credenciais em `~/.claude/sdk-proxy-credentials.json`
+   - SEM ESSE HOOK, o arquivo de credenciais NAO e criado e nada funciona
+
+3. **openclaude-vscode** (extensao complementar)
    - Faz polling do arquivo `sdk-proxy-credentials.json` a cada 10 segundos
    - Injeta as variaveis `ANTHROPIC_BASE_URL` e `ANTHROPIC_API_KEY` nos terminais
      do VS Code via `environmentVariableCollection`
    - Fornece o Control Center (painel lateral) para gerenciar o OpenClaude
 
-3. **openclaude** (CLI no terminal)
+4. **openclaude** (CLI no terminal)
    - Le as variaveis de ambiente injetadas pela extensao
    - Conecta ao proxy local do Claude Code
-   - As requisicoes sao traduzidas para chamadas da API de Language Model do VS Code
    - Resultado: uso dos modelos Claude sem consumo de tokens
 
 Fluxo resumido:
 
-    Claude Code ativa -> inicia proxy na porta X -> grava credenciais no disco
-    openclaude-vscode detecta -> injeta env vars nos terminais
-    openclaude CLI le env vars -> conecta na porta X -> funciona
+    Claude Code ativa
+    -> inicia proxy na porta X
+    -> hook SessionStart grava credenciais no disco
+    -> openclaude-vscode detecta o arquivo
+    -> injeta env vars nos terminais
+    -> openclaude CLI le env vars
+    -> conecta na porta X
+    -> funciona
 
 ---
 
@@ -45,14 +54,23 @@ Antes de comecar, voce precisa ter instalado:
 - **VS Code** — https://code.visualstudio.com/
 - **GitHub Copilot Pro+** — assinatura ativa no GitHub
 - **Extensao Claude Code** — instalar pelo marketplace do VS Code
-  (publisher: Anthropic, id: anthropic.claude-code)
+  (publisher: Anthropic, id: `anthropic.claude-code`)
 - **Extensao GitHub Copilot** — instalar pelo marketplace do VS Code
-  (publisher: GitHub, id: github.copilot)
+  (publisher: GitHub, id: `github.copilot`)
 
-Para verificar se Node.js e Git estao instalados, abra o terminal:
+Para verificar no terminal:
 
-    node --version
-    git --version
+    node --version          # deve ser 20+
+    git --version           # qualquer versao
+    code --version          # qualquer versao
+
+Para verificar extensoes do VS Code:
+
+    code --list-extensions | grep -i "copilot\|claude\|anthropic"
+
+Deve aparecer pelo menos:
+- `github.copilot`
+- `anthropic.claude-code`
 
 ---
 
@@ -82,11 +100,14 @@ Apos o script, verifique:
 
 Deve mostrar algo como `0.1.9 (Open Claude)`.
 
+Se `openclaude` nao for encontrado, feche e abra o terminal.
+
 ---
 
 ## Passo 3 — Instalar a extensao openclaude-vscode
 
 A extensao esta empacotada como VSIX dentro do repositorio.
+A versao correta e a **0.2.0** (versoes anteriores nao tem todos os modulos).
 
 ### Opcao A — Via interface do VS Code
 
@@ -103,44 +124,235 @@ A extensao esta empacotada como VSIX dentro do repositorio.
 
 **Importante:** Apos instalar, feche o VS Code completamente (File > Exit) e abra novamente.
 
+### Verificacao
+
+Confirme que a extensao esta instalada:
+
+    code --list-extensions | grep -i openclaude
+
+Deve aparecer `devnull-bootloader.openclaude-vscode`.
+
 ---
 
-## Passo 4 — Configurar o Git Bash (somente Windows)
+## Passo 4 — Criar o hook SessionStart (CRITICO)
 
-O Claude Code precisa saber onde esta o `bash.exe`. Se o caminho padrao nao existir no seu PC,
-voce vera o erro:
+**Este e o passo mais importante.** Sem esse hook, o arquivo de credenciais
+`sdk-proxy-credentials.json` NAO e criado automaticamente, e o openclaude
+nao consegue se conectar ao proxy.
+
+### 4.1 — Criar o diretorio de hooks
+
+    mkdir -p ~/.claude/hooks
+
+### 4.2 — Criar o arquivo do hook
+
+Crie o arquivo `~/.claude/hooks/openclaude-proxy-seed.js` com este conteudo:
+
+```javascript
+// openclaude-proxy-seed.js
+// SessionStart hook: persists VS Code SDK proxy credentials to disk so that
+// `openclaude` in any terminal can auto-discover the proxy.
+//
+// Runs in the Claude Code SDK context where ANTHROPIC_BASE_URL and
+// ANTHROPIC_API_KEY are set. Writes ~/.claude/sdk-proxy-credentials.json.
+
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+
+const baseUrl = process.env.ANTHROPIC_BASE_URL;
+const apiKey = process.env.ANTHROPIC_API_KEY;
+
+if (!baseUrl || !apiKey) {
+  // Not in a VS Code proxy context — nothing to do.
+  process.exit(0);
+}
+
+// Only seed when it looks like a VS Code local proxy with a vscode-lm token
+try {
+  const hostname = new URL(baseUrl).hostname;
+  if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+    process.exit(0);
+  }
+} catch {
+  process.exit(0);
+}
+
+if (!String(apiKey).startsWith('vscode-lm-')) {
+  process.exit(0);
+}
+
+const credPath = path.join(os.homedir(), '.claude', 'sdk-proxy-credentials.json');
+
+try {
+  fs.writeFileSync(credPath, JSON.stringify({
+    baseUrl,
+    apiKey,
+    timestamp: new Date().toISOString(),
+    source: 'claude-code-sdk',
+  }));
+} catch {
+  // Best-effort — .claude dir might not exist yet
+}
+```
+
+### 4.3 — Registrar o hook no settings.json do Claude Code
+
+Edite o arquivo `~/.claude/settings.json`. Se o arquivo nao existir, crie-o.
+
+**Se o arquivo NAO existir ou estiver vazio**, crie com este conteudo
+(substitua SEU_USUARIO pelo nome de usuario do seu sistema):
+
+No **Windows**:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/SEU_USUARIO/.claude/hooks/openclaude-proxy-seed.js\""
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+No **macOS/Linux**:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/openclaude-proxy-seed.js\""
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Se o arquivo JA existir e JA tiver hooks**, adicione o bloco do
+openclaude-proxy-seed ao array `SessionStart` existente. Exemplo:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "HOOKS_QUE_JA_EXISTIAM_AQUI"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/SEU_USUARIO/.claude/hooks/openclaude-proxy-seed.js\""
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### 4.4 — Verificar que o hook foi criado
+
+    cat ~/.claude/hooks/openclaude-proxy-seed.js
+    cat ~/.claude/settings.json
+
+Confirme que o arquivo do hook existe e que o settings.json referencia ele.
+
+### Como o hook funciona
+
+Quando o Claude Code inicia uma sessao no VS Code, ele define internamente
+as variaveis `ANTHROPIC_BASE_URL` (ex: `http://localhost:53814`) e
+`ANTHROPIC_API_KEY` (ex: `vscode-lm-a825cc5a-...`). Essas variaveis so
+existem dentro do contexto da sessao.
+
+O hook roda nesse momento, captura essas variaveis, e grava em disco no
+arquivo `~/.claude/sdk-proxy-credentials.json`. A extensao openclaude-vscode
+faz polling desse arquivo e injeta as credenciais nos terminais.
+
+Sem esse hook, as credenciais nunca sao gravadas e o openclaude nao funciona.
+
+---
+
+## Passo 5 — Configurar o Git Bash (somente Windows)
+
+O Claude Code precisa saber onde esta o `bash.exe`. Se o caminho padrao
+nao existir no seu PC, voce vera o erro:
 
     Claude Code was unable to find CLAUDE_CODE_GIT_BASH_PATH path "..."
 
 Para corrigir:
 
-1. Descubra o caminho correto:
+### 5.1 — Descobrir o caminho correto
 
-       where bash
+    where bash
 
-   Exemplo de saida: `C:\Program Files\Git\usr\bin\bash.exe`
+Exemplo de saida: `C:\Program Files\Git\usr\bin\bash.exe`
 
-2. Configure no VS Code:
-   - Pressione `Ctrl+Shift+P`
-   - Digite "Preferences: Open Settings (JSON)"
-   - Adicione:
+### 5.2 — Configurar no VS Code settings.json
 
-         "claude-code.gitBashPath": "C:\\Program Files\\Git\\usr\\bin\\bash.exe"
+Pressione `Ctrl+Shift+P` > "Preferences: Open Settings (JSON)" e adicione:
 
-   (use o caminho que `where bash` retornou)
+```json
+"claude-code.gitBashPath": "C:\\Program Files\\Git\\usr\\bin\\bash.exe"
+```
 
-3. Tambem configure a variavel de ambiente permanentemente:
+(use o caminho que `where bash` retornou, com barras duplas)
 
-       setx CLAUDE_CODE_GIT_BASH_PATH "C:\Program Files\Git\usr\bin\bash.exe"
+### 5.3 — Configurar variavel de ambiente permanente
 
-4. Feche o VS Code completamente e abra novamente.
+    setx CLAUDE_CODE_GIT_BASH_PATH "C:\Program Files\Git\usr\bin\bash.exe"
+
+### 5.4 — Reiniciar
+
+Feche o VS Code completamente (File > Exit) e abra novamente.
 
 ---
 
-## Passo 5 — Conceder permissao de Language Model
+## Passo 6 — Limpar credenciais antigas
 
-Na primeira vez que o Claude Code tenta acessar os modelos do Copilot, o VS Code mostra um
-dialogo pedindo permissao. Voce PRECISA aceitar essa permissao.
+Se voce ja usou o Claude Code antes com API key propria, Ollama, ou outro
+provider, pode haver conflito. Limpe:
+
+### 6.1 — Remover credenciais antigas do Claude Code
+
+    claude /logout
+
+### 6.2 — Deletar arquivo de credenciais antigo (se existir)
+
+    rm ~/.claude/sdk-proxy-credentials.json 2>/dev/null
+
+O hook vai recriar o arquivo com os dados corretos na proxima sessao.
+
+### 6.3 — Limpar config.json do Claude Code (se necessario)
+
+Se `~/.claude/config.json` tiver variaveis de ambiente como `ANTHROPIC_API_KEY=ollama`
+ou chaves de API antigas, edite o arquivo e remova. O openclaude usa exclusivamente
+as credenciais do proxy injetadas pela extensao — nada no config.json e necessario.
+
+---
+
+## Passo 7 — Conceder permissao de Language Model
+
+Na primeira vez que o Claude Code tenta acessar os modelos do Copilot, o VS Code
+mostra um dialogo pedindo permissao. Voce PRECISA aceitar essa permissao.
 
 Se o dialogo nao aparecer automaticamente:
 
@@ -149,24 +361,20 @@ Se o dialogo nao aparecer automaticamente:
 3. Encontre a extensao Claude Code na lista
 4. Permita o acesso
 
-Se o comando nao existir, verifique se as extensoes Claude Code e GitHub Copilot estao ativas:
-
-    code --list-extensions | grep -i "copilot\|claude\|anthropic"
-
-Deve aparecer pelo menos:
-- `github.copilot`
-- `anthropic.claude-code`
-
 ---
 
-## Passo 6 — Primeiro uso (fluxo obrigatorio)
+## Passo 8 — Primeiro uso (fluxo obrigatorio)
 
 Toda vez que abrir o VS Code, siga esta ordem:
 
 1. **Abra o chat do Claude Code** no painel lateral do VS Code
-2. **Envie qualquer mensagem** (pode ser "oi") — isso inicia o proxy e grava as credenciais
-3. **Abra um NOVO terminal** no VS Code (`Ctrl+Shift+``)
-4. **Rode** `openclaude`
+2. **Envie qualquer mensagem** (pode ser "oi")
+   - Isso inicia o proxy e dispara o hook SessionStart
+   - O hook grava as credenciais em `~/.claude/sdk-proxy-credentials.json`
+3. **Aguarde ~10 segundos** (tempo do polling da extensao)
+4. **Abra um NOVO terminal** no VS Code (`Ctrl+Shift+``)
+   - NAO reutilize um terminal antigo — as variaveis so sao injetadas em terminais novos
+5. **Rode** `openclaude`
 
 Deve aparecer:
 
@@ -177,30 +385,61 @@ Deve aparecer:
 
 **Por que esse fluxo e necessario?**
 O proxy so inicia quando uma sessao de chat do Claude Code comeca. Sem o proxy rodando,
-o arquivo `sdk-proxy-credentials.json` nao e criado, e o openclaude nao tem para onde
-se conectar. A porta muda a cada sessao, mas a extensao cuida disso automaticamente via polling.
+o hook nao tem credenciais para capturar, o arquivo nao e criado, e o openclaude nao tem
+para onde se conectar. A porta muda a cada sessao, mas o hook + polling cuida disso.
 
 ---
 
-## Passo 7 — Verificacao
+## Passo 9 — Verificacao completa
 
-Para confirmar que tudo esta funcionando:
+Execute cada comando no terminal do VS Code e confirme o resultado esperado:
+
+### 9.1 — Verificar arquivo de credenciais
+
+    cat ~/.claude/sdk-proxy-credentials.json
+
+Deve mostrar algo como:
+
+```json
+{
+  "baseUrl": "http://localhost:53814",
+  "apiKey": "vscode-lm-a825cc5a-9b33-...",
+  "timestamp": "2026-04-07T15:45:10.646Z",
+  "source": "claude-code-sdk"
+}
+```
+
+- `baseUrl` deve ter uma porta local (ex: 53814)
+- `apiKey` DEVE comecar com `vscode-lm-`
+- Se `apiKey` for "ollama" ou outra coisa, esta errado — volte ao Passo 6
+
+### 9.2 — Verificar variaveis de ambiente
 
     echo $ANTHROPIC_BASE_URL
 
 Deve mostrar algo como `http://127.0.0.1:53814`.
 
+    echo $ANTHROPIC_API_KEY
+
+Deve comecar com `vscode-lm-`.
+
+Se ambos estiverem vazios, a extensao openclaude-vscode nao esta injetando.
+Verifique se a extensao esta ativa (Passo 3).
+
+### 9.3 — Verificar que o proxy esta vivo
+
     curl $ANTHROPIC_BASE_URL
 
 Deve responder `Hello from ClaudeLanguageModelServer`.
 
-    openclaude --version
+Se der ECONNREFUSED, o proxy caiu. Volte ao Passo 8 (envie mensagem no chat).
 
-Deve mostrar a versao.
+### 9.4 — Testar o openclaude
 
     openclaude
 
 Deve mostrar o banner com "VS Code Proxy (Copilot Pro+)" e o chat interativo.
+Envie uma mensagem de teste e confirme que recebe resposta.
 
 ---
 
@@ -211,43 +450,44 @@ Deve mostrar o banner com "VS Code Proxy (Copilot Pro+)" e o chat interativo.
 **Causa:** O proxy nao esta rodando na porta indicada.
 
 **Solucao:**
-1. Abra o chat do Claude Code e envie uma mensagem
-2. Abra um NOVO terminal (nao reutilize o antigo)
-3. Rode `openclaude` novamente
+1. Abra o chat do Claude Code e envie uma mensagem (ativa o proxy)
+2. Aguarde ~10 segundos
+3. Abra um NOVO terminal (nao reutilize o antigo)
+4. Rode `openclaude` novamente
 
 ### Erro: "Claude Code was unable to find CLAUDE_CODE_GIT_BASH_PATH"
 
-**Causa:** O caminho do `bash.exe` esta incorreto.
+**Causa:** O caminho do `bash.exe` esta incorreto (somente Windows).
 
-**Solucao:** Siga o Passo 4.
+**Solucao:** Siga o Passo 5.
 
 ### Erro: "Auth conflict: Using ANTHROPIC_API_KEY instead of Anthropic Console key"
 
 **Causa:** Existe um login antigo do Claude Code com API key da Anthropic.
 
-**Solucao:**
-
-    claude /logout
-
-Isso remove a credencial antiga. O openclaude usa o proxy (nao precisa de login).
+**Solucao:** Rode `claude /logout` e siga o Passo 6.
 
 ### Provider mostra "Anthropic" em vez de "VS Code Proxy (Copilot Pro+)"
 
-**Causa:** A extensao openclaude-vscode nao esta injetando as variaveis de ambiente.
+**Causa:** As variaveis de ambiente nao estao sendo injetadas.
 
 **Solucao:**
 1. Verifique se a extensao esta instalada: `code --list-extensions | grep openclaude`
 2. Verifique se o arquivo de credenciais existe: `cat ~/.claude/sdk-proxy-credentials.json`
-3. Se o arquivo nao existir, abra o chat do Claude Code e envie uma mensagem
-4. Abra um NOVO terminal e rode `openclaude`
+3. Se o arquivo nao existir, o hook nao esta funcionando — volte ao Passo 4
+4. Se o arquivo existir mas as env vars estiverem vazias, abra um NOVO terminal
+5. Se nada funcionar, rode no VS Code: `Ctrl+Shift+P` > "Developer: Show Running Extensions"
+   e confirme que "OpenClaude" aparece na lista
 
-### A extensao nao ativa / nao aparece
+### O arquivo sdk-proxy-credentials.json nao e criado
+
+**Causa:** O hook SessionStart nao esta configurado.
 
 **Solucao:**
-1. Pressione `Ctrl+Shift+P` e rode "Developer: Show Running Extensions"
-2. Procure "OpenClaude" na lista
-3. Se nao estiver la, rode "Developer: Open Extension Host Log" e procure erros com "openclaude"
-4. Se necessario, reinstale o VSIX (Passo 3)
+1. Verifique se o arquivo do hook existe: `cat ~/.claude/hooks/openclaude-proxy-seed.js`
+2. Verifique se esta registrado: `cat ~/.claude/settings.json` (deve ter SessionStart)
+3. Se ambos existirem, o caminho do hook no settings.json pode estar errado
+4. Volte ao Passo 4 e refaca a configuracao
 
 ### O dialogo de permissao do Language Model nao aparece
 
@@ -257,15 +497,29 @@ Isso remove a credencial antiga. O openclaude usa o proxy (nao precisa de login)
 3. Feche e abra o VS Code
 4. Abra o chat do Claude Code novamente
 
+### A extensao nao ativa / nao aparece
+
+**Solucao:**
+1. `Ctrl+Shift+P` > "Developer: Show Running Extensions"
+2. Procure "OpenClaude" na lista
+3. Se nao estiver la, rode "Developer: Open Extension Host Log" e procure erros com "openclaude"
+4. Se necessario, reinstale o VSIX (Passo 3)
+
 ---
 
 ## Estrutura de arquivos relevantes
 
-    ~/.claude/sdk-proxy-credentials.json    # Credenciais do proxy (porta + apiKey)
-    ~/.claude/config.json                   # Config geral do Claude Code (nao editar)
+    ~/.claude/
+    ├── settings.json                       # Config do Claude Code (hooks ficam aqui)
+    ├── sdk-proxy-credentials.json          # Credenciais do proxy (escrito pelo hook)
+    ├── config.json                         # Config geral (nao editar)
+    └── hooks/
+        └── openclaude-proxy-seed.js        # Hook que grava credenciais
 
     openclaude/                             # Repositorio clonado
-    ├── setup.sh                            # Script de instalacao
+    ├── setup.sh                            # Script de instalacao do CLI
+    ├── docs/
+    │   └── vscode-proxy-setup.md           # Este documento
     ├── src/                                # Codigo fonte do CLI
     ├── dist/                               # CLI compilado
     └── vscode-extension/
@@ -294,15 +548,20 @@ Se houver VSIX novo, reinstale:
 
     code --install-extension vscode-extension/openclaude-vscode/openclaude-vscode-X.Y.Z.vsix
 
+O hook e o settings.json NAO precisam ser reconfigurados — persistem em `~/.claude/`.
+
 ---
 
-## Resumo rapido
+## Resumo rapido (checklist)
 
-    git clone https://github.com/iFael/openclaude.git
-    cd openclaude
-    bash setup.sh
-    # Instalar VSIX via VS Code (Ctrl+Shift+X > ... > Install from VSIX)
-    # Fechar e abrir VS Code
-    # Abrir chat do Claude Code e enviar mensagem
-    # Abrir novo terminal
-    openclaude
+    [ ] 1. git clone + cd openclaude
+    [ ] 2. bash setup.sh (instala CLI)
+    [ ] 3. Instalar VSIX 0.2.0 no VS Code
+    [ ] 4. Criar ~/.claude/hooks/openclaude-proxy-seed.js
+    [ ] 5. Registrar hook no ~/.claude/settings.json
+    [ ] 6. Configurar Git Bash path (Windows)
+    [ ] 7. Limpar credenciais antigas (claude /logout)
+    [ ] 8. Fechar e abrir VS Code
+    [ ] 9. Abrir chat do Claude Code + enviar mensagem
+    [ ] 10. Abrir NOVO terminal + rodar openclaude
+    [ ] 11. Confirmar: Provider = "VS Code Proxy (Copilot Pro+)"
