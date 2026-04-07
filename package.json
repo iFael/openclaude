@@ -51,7 +51,7 @@
     "hardening:check": "bun run smoke && bun run doctor:runtime",
     "hardening:strict": "bun run typecheck && bun run hardening:check",
     "prepack": "npm run build",
-    "prepare": "husky"
+    "prepare": ""
   },
   "dependencies": {
     "@alcalzone/ansi-tokenize": "0.3.0",
@@ -135,8 +135,6 @@
     "@types/bun": "1.3.11",
     "@types/node": "25.5.0",
     "@types/react": "19.2.14",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.4.0",
     "tsx": "^4.21.0",
     "typescript": "5.9.3"
   },
@@ -163,10 +161,5 @@
   },
   "overrides": {
     "lodash-es": "4.18.1"
-  },
-  "lint-staged": {
-    "vscode-extension/**/*.ts": [
-      "npx @biomejs/biome check --write"
-    ]
   }
 }
