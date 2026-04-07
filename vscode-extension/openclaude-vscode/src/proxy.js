@@ -30,15 +30,18 @@ async function startProxy() {
   });
 
   const server = http.createServer(async (req, res) => {
+    // Parse pathname once, stripping query strings (e.g. ?beta=true)
+    const pathname = (req.url || '').split('?')[0];
+
     // --- Health check ---
-    if (req.method === 'GET' && (req.url === '/' || req.url === '')) {
+    if (req.method === 'GET' && (pathname === '/' || pathname === '')) {
       res.writeHead(200, { 'Content-Type': 'text/plain' });
       res.end('Hello from OpenClaudeProxy');
       return;
     }
 
     // --- Model diagnostics (no auth required) ---
-    if (req.method === 'GET' && req.url === '/v1/models') {
+    if (req.method === 'GET' && pathname === '/v1/models') {
       const models = activeModels.map(m => ({
         id: m.id,
         name: m.name || m.id,
@@ -66,7 +69,7 @@ async function startProxy() {
     }
 
     // --- POST /v1/messages ---
-    if (req.method === 'POST' && req.url === '/v1/messages') {
+    if (req.method === 'POST' && pathname === '/v1/messages') {
       try {
         const body = await readBody(req);
         const request = JSON.parse(body);
@@ -86,7 +89,7 @@ async function startProxy() {
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       type: 'error',
-      error: { type: 'not_found_error', message: `Not found: ${req.method} ${req.url}` },
+      error: { type: 'not_found_error', message: `Not found: ${req.method} ${pathname}` },
     }));
   });
 
@@ -205,21 +208,28 @@ async function handleMessages(request, models, res) {
 
   // Translate tools if present (client-side tools only)
   if (request.tools && request.tools.length > 0) {
-    const clientTools = request.tools
-      .filter(t => t.type !== 'web_search_20250305') // skip server-side tools
-      .map(t => {
-        if (t.input_schema) {
-          return new vscode.LanguageModelChatTool(
-            t.name,
-            t.description || '',
-            t.input_schema,
-          );
-        }
-        return null;
-      })
-      .filter(Boolean);
-    if (clientTools.length > 0) {
-      options.tools = clientTools;
+    // vscode.lm tool support depends on the VS Code version and the LM
+    // provider. Build tool descriptors using the available constructor;
+    // if none exists, skip tools entirely — the model will still respond,
+    // just without tool_use blocks.
+    const ToolCtor = vscode.LanguageModelChatTool ?? vscode.LanguageModelToolInformation;
+    if (ToolCtor) {
+      const clientTools = request.tools
+        .filter(t => t.type !== 'web_search_20250305') // skip server-side tools
+        .map(t => {
+          if (t.input_schema) {
+            try {
+              return new ToolCtor(t.name, t.description || '', t.input_schema);
+            } catch {
+              return null;
+            }
+          }
+          return null;
+        })
+        .filter(Boolean);
+      if (clientTools.length > 0) {
+        options.tools = clientTools;
+      }
     }
   }
 
