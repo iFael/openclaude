@@ -200,6 +200,7 @@ const useScheduledTasks = feature('AGENT_TRIGGERS') ? require('../hooks/useSched
 /* eslint-enable @typescript-eslint/no-require-imports */
 import { isAgentSwarmsEnabled } from '../utils/agentSwarmsEnabled.js';
 import { useTaskListWatcher } from '../hooks/useTaskListWatcher.js';
+import { useAgentChatWatcher } from '../hooks/useAgentChatWatcher.js';
 import type { SandboxAskCallback, NetworkHostPattern } from '../utils/sandbox/sandbox-adapter.js';
 import { type IDEExtensionInstallationStatus, closeOpenDiffs, getConnectedIdeClient, type IdeType } from '../utils/ide.js';
 import { useIDEIntegration } from '../hooks/useIDEIntegration.js';
@@ -4103,6 +4104,9 @@ export function REPL({
       })
     });
   }
+
+  // AgentChat: watch for wake-up signals from the WebSocket daemon
+  useAgentChatWatcher({ isLoading });
 
   // Abort the current operation when a 'now' priority message arrives
   // (e.g. from a chat UI client via UDS).

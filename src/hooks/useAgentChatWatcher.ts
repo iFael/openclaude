@@ -1,0 +1,103 @@
+import { type FSWatcher, watch, existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
+import { join } from 'path'
+import { useEffect, useRef } from 'react'
+import { logForDebugging } from '../utils/debug.js'
+import { enqueue } from '../utils/messageQueueManager.js'
+
+const WAKEUP_FILE = join(process.env.TEMP || '/tmp', 'agentchat-wakeup.json')
+const DEBOUNCE_MS = 500
+
+/**
+ * Hook that watches for AgentChat wake-up signals.
+ *
+ * The AgentChat daemon writes to a JSON file when a new message arrives.
+ * This hook detects the change via fs.watch and enqueues "leia a mensagem"
+ * as user input, waking the agent from idle state.
+ *
+ * Flow: daemon receives WS message → writes wakeup file → this hook
+ * detects → enqueue() → REPL processes as user input → hook fires →
+ * agent sees message and reacts.
+ */
+export function useAgentChatWatcher({
+  isLoading,
+}: {
+  isLoading: boolean
+}): void {
+  const isLoadingRef = useRef(isLoading)
+  isLoadingRef.current = isLoading
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    // Ensure the wakeup file exists
+    try {
+      if (!existsSync(WAKEUP_FILE)) {
+        writeFileSync(WAKEUP_FILE, JSON.stringify({ wake: false }))
+      }
+    } catch {}
+
+    let watcher: FSWatcher | null = null
+
+    const handleWakeup = (): void => {
+      // Don't wake if agent is already working
+      if (isLoadingRef.current) {
+        logForDebugging('[AgentChatWatcher] Agent is busy, skipping wake')
+        return
+      }
+
+      // Read and validate the wakeup signal
+      try {
+        const data = JSON.parse(readFileSync(WAKEUP_FILE, 'utf8'))
+        if (!data.wake) return
+
+        logForDebugging(
+          `[AgentChatWatcher] Wake signal received from ${data.from || 'unknown'}`,
+        )
+
+        // Clear the signal immediately to avoid re-processing
+        writeFileSync(WAKEUP_FILE, JSON.stringify({ wake: false }))
+
+        // Enqueue as user input — REPL will process it on next tick
+        enqueue({ value: 'leia a mensagem', mode: 'prompt' })
+      } catch {
+        // File doesn't exist or invalid JSON — ignore
+      }
+    }
+
+    const debouncedCheck = (): void => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+      debounceTimerRef.current = setTimeout(handleWakeup, DEBOUNCE_MS)
+    }
+
+    try {
+      watcher = watch(WAKEUP_FILE, debouncedCheck)
+      watcher.unref()
+      logForDebugging(
+        `[AgentChatWatcher] Watching ${WAKEUP_FILE} for wake signals`,
+      )
+    } catch (error) {
+      logForDebugging(
+        `[AgentChatWatcher] Failed to watch ${WAKEUP_FILE}: ${error}`,
+      )
+    }
+
+    return () => {
+      if (watcher) watcher.close()
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+    }
+  }, [])
+
+  // When agent goes idle, check for pending wake signals
+  useEffect(() => {
+    if (isLoading) return
+    try {
+      const data = JSON.parse(readFileSync(WAKEUP_FILE, 'utf8'))
+      if (data.wake) {
+        logForDebugging('[AgentChatWatcher] Pending wake signal found on idle')
+        writeFileSync(WAKEUP_FILE, JSON.stringify({ wake: false }))
+        enqueue({ value: 'leia a mensagem', mode: 'prompt' })
+      }
+    } catch {}
+  }, [isLoading])
+}
