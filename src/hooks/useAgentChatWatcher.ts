@@ -2,7 +2,7 @@ import { type FSWatcher, watch, existsSync, readFileSync, writeFileSync, mkdirSy
 import { join } from 'path'
 import { useEffect, useRef } from 'react'
 import { logForDebugging } from '../utils/debug.js'
-import { enqueue } from '../utils/messageQueueManager.js'
+import { enqueue, getCommandQueue } from '../utils/messageQueueManager.js'
 
 const WAKEUP_FILE = join(process.env.TEMP || '/tmp', 'agentchat-wakeup.json')
 const DEBOUNCE_MS = 500
@@ -38,9 +38,10 @@ export function useAgentChatWatcher({
     let watcher: FSWatcher | null = null
 
     const handleWakeup = (): void => {
-      // Don't wake if agent is already working
-      if (isLoadingRef.current) {
-        logForDebugging('[AgentChatWatcher] Agent is busy, skipping wake')
+      // Dedup: skip if there's already a wake prompt in the queue
+      const queue = getCommandQueue()
+      if (queue.some(cmd => typeof cmd.value === 'string' && cmd.value.includes('digitando...'))) {
+        logForDebugging('[AgentChatWatcher] Wake already queued, skipping')
         return
       }
 
