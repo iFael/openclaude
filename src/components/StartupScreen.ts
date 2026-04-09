@@ -1,8 +1,6 @@
 /**
- * OpenClaude startup screen — filled-block text logo with sunset gradient.
+ * AgentChat startup screen — modern slim design with cyan-to-blue gradient.
  * Called once at CLI startup before the Ink UI renders.
- *
- * Addresses: https://github.com/Gitlawb/openclaude/issues/55
  */
 
 import { isLocalProviderUrl } from '../services/api/providerConfig.js'
@@ -14,6 +12,7 @@ declare const MACRO: { VERSION: string; DISPLAY_VERSION?: string }
 const ESC = '\x1b['
 const RESET = `${ESC}0m`
 const DIM = `${ESC}2m`
+const BOLD = `${ESC}1m`
 
 type RGB = [number, number, number]
 const rgb = (r: number, g: number, b: number) => `${ESC}38;2;${r};${g};${b}m`
@@ -37,7 +36,7 @@ function gradAt(stops: RGB[], t: number): RGB {
 function paintLine(text: string, stops: RGB[], lineT: number): string {
   let out = ''
   for (let i = 0; i < text.length; i++) {
-    const t = text.length > 1 ? lineT * 0.5 + (i / (text.length - 1)) * 0.5 : lineT
+    const t = text.length > 1 ? lineT * 0.4 + (i / (text.length - 1)) * 0.6 : lineT
     const [r, g, b] = gradAt(stops, t)
     out += `${rgb(r, g, b)}${text[i]}`
   }
@@ -46,38 +45,39 @@ function paintLine(text: string, stops: RGB[], lineT: number): string {
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
 
-const SUNSET_GRAD: RGB[] = [
-  [255, 180, 100],
-  [240, 140, 80],
-  [217, 119, 87],
-  [193, 95, 60],
-  [160, 75, 55],
-  [130, 60, 50],
+const CYAN_GRAD: RGB[] = [
+  [0, 255, 255],
+  [0, 210, 240],
+  [0, 170, 220],
+  [0, 130, 200],
+  [0, 90, 170],
+  [0, 60, 140],
 ]
 
-const ACCENT: RGB = [240, 148, 100]
-const CREAM: RGB = [220, 195, 170]
-const DIMCOL: RGB = [120, 100, 82]
-const BORDER: RGB = [100, 80, 65]
+const ACCENT: RGB = [0, 230, 230]
+const CREAM: RGB = [190, 220, 240]
+const DIMCOL: RGB = [70, 105, 130]
+const BORDER: RGB = [50, 90, 120]
+const HIGHLIGHT: RGB = [120, 220, 255]
 
-// ─── Filled Block Text Logo ───────────────────────────────────────────────────
+// ─── Block Logo — AGENT CHAT ─────────────────────────────────────────────────
 
-const LOGO_OPEN = [
-  `  \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2557  \u2588\u2588\u2557`,
-  `  \u2588\u2588\u2554\u2550\u2550\u2550\u2588\u2588\u2551 \u2588\u2588\u2554\u2550\u2550\u2550\u2588\u2588\u2551 \u2588\u2588\u2554\u2550\u2550\u2550\u2550\u2550\u255d \u2588\u2588\u2588\u2557 \u2588\u2588\u2551`,
-  `  \u2588\u2588\u2551   \u2588\u2588\u2551 \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2551 \u2588\u2588\u2588\u2588\u2588\u2588\u2557   \u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2551`,
-  `  \u2588\u2588\u2551   \u2588\u2588\u2551 \u2588\u2588\u2554\u2550\u2550\u2550\u2550\u2550\u255d \u2588\u2588\u2554\u2550\u2550\u2550\u255d   \u2588\u2588\u2554\u2588\u2588\u2588\u2588\u2551`,
-  `  \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2551 \u2588\u2588\u2551       \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2551 \u255a\u2588\u2588\u2588\u2551`,
-  `  \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d \u255a\u2550\u255d       \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d \u255a\u2550\u255d  \u255a\u2550\u2550\u255d`,
+const LOGO_AGENT = [
+  '  \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2557  \u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557',
+  '  \u2588\u2588\u2554\u2550\u2550\u2550\u2588\u2588\u2551 \u2588\u2588\u2554\u2550\u2550\u2550\u2550\u2550\u255d \u2588\u2588\u2554\u2550\u2550\u2550\u2550\u2550\u255d \u2588\u2588\u2588\u2557 \u2588\u2588\u2551 \u255a\u2550\u2588\u2588\u2554\u2550\u2550\u255d',
+  '  \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2551 \u2588\u2588\u2551 \u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2557   \u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2551    \u2588\u2588\u2551   ',
+  '  \u2588\u2588\u2554\u2550\u2550\u2550\u2588\u2588\u2551 \u2588\u2588\u2551  \u2588\u2588\u2551 \u2588\u2588\u2554\u2550\u2550\u2550\u255d   \u2588\u2588\u2554\u2588\u2588\u2588\u2588\u2551    \u2588\u2588\u2551   ',
+  '  \u2588\u2588\u2551   \u2588\u2588\u2551 \u255a\u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255d \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2551 \u255a\u2588\u2588\u2588\u2551    \u2588\u2588\u2551   ',
+  '  \u255a\u2550\u255d   \u255a\u2550\u255d  \u255a\u2550\u2550\u2550\u2550\u2550\u255d  \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d \u255a\u2550\u255d  \u255a\u2550\u2550\u255d    \u255a\u2550\u255d   ',
 ]
 
-const LOGO_CLAUDE = [
-  `  \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2557      \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2557   \u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557`,
-  `  \u2588\u2588\u2554\u2550\u2550\u2550\u2550\u2550\u255d \u2588\u2588\u2551      \u2588\u2588\u2554\u2550\u2550\u2550\u2588\u2588\u2551 \u2588\u2588\u2551   \u2588\u2588\u2551 \u2588\u2588\u2554\u2550\u2550\u2550\u2588\u2588\u2551 \u2588\u2588\u2554\u2550\u2550\u2550\u2550\u2550\u255d`,
-  `  \u2588\u2588\u2551       \u2588\u2588\u2551      \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2551 \u2588\u2588\u2551   \u2588\u2588\u2551 \u2588\u2588\u2551   \u2588\u2588\u2551 \u2588\u2588\u2588\u2588\u2588\u2588\u2557  `,
-  `  \u2588\u2588\u2551       \u2588\u2588\u2551      \u2588\u2588\u2554\u2550\u2550\u2550\u2588\u2588\u2551 \u2588\u2588\u2551   \u2588\u2588\u2551 \u2588\u2588\u2551   \u2588\u2588\u2551 \u2588\u2588\u2554\u2550\u2550\u2550\u255d  `,
-  `  \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2551   \u2588\u2588\u2551 \u255a\u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255d \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2551 \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557`,
-  `  \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d\u255a\u2550\u255d   \u255a\u2550\u255d  \u255a\u2550\u2550\u2550\u2550\u2550\u255d  \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d`,
+const LOGO_CHAT = [
+  '  \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2557  \u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557',
+  '  \u2588\u2588\u2554\u2550\u2550\u2550\u2550\u2550\u255d \u2588\u2588\u2551  \u2588\u2588\u2551 \u2588\u2588\u2554\u2550\u2550\u2550\u2588\u2588\u2551 \u255a\u2550\u2588\u2588\u2554\u2550\u2550\u255d',
+  '  \u2588\u2588\u2551       \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2551 \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2551   \u2588\u2588\u2551   ',
+  '  \u2588\u2588\u2551       \u2588\u2588\u2554\u2550\u2550\u2550\u2588\u2588\u2551 \u2588\u2588\u2554\u2550\u2550\u2550\u2588\u2588\u2551   \u2588\u2588\u2551   ',
+  '  \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2551   \u2588\u2588\u2551 \u2588\u2588\u2551   \u2588\u2588\u2551   \u2588\u2588\u2551   ',
+  '  \u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d \u255a\u2550\u255d   \u255a\u2550\u255d \u255a\u2550\u255d   \u255a\u2550\u255d   \u255a\u2550\u255d   ',
 ]
 
 // ─── Provider detection ───────────────────────────────────────────────────────
@@ -113,8 +113,7 @@ function detectProvider(): { name: string; model: string; baseUrl: string; isLoc
     else if (/azure/i.test(baseUrl))                                  name = 'Azure OpenAI'
     else if (/llama/i.test(rawModel))                                    name = 'Meta Llama'
     else if (isLocal)                                                  name = getLocalOpenAICompatibleProviderLabel(baseUrl)
-    
-    // Resolve model alias to actual model name + reasoning effort
+
     let displayModel = rawModel
     const codexAliases: Record<string, { model: string; reasoningEffort?: string }> = {
       codexplan: { model: 'gpt-5.4', reasoningEffort: 'high' },
@@ -136,11 +135,10 @@ function detectProvider(): { name: string; model: string; baseUrl: string; isLoc
         displayModel = `${displayModel} (${resolved.reasoningEffort})`
       }
     }
-    
+
     return { name, model: displayModel, baseUrl, isLocal }
   }
 
-  // Default: Anthropic
   const model = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-6'
   const baseUrl = process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com'
   if (isVsCodeProxy()) {
@@ -149,70 +147,64 @@ function detectProvider(): { name: string; model: string; baseUrl: string; isLoc
   return { name: 'Anthropic', model, baseUrl, isLocal: false }
 }
 
-// ─── Box drawing ──────────────────────────────────────────────────────────────
-
-function boxRow(content: string, width: number, rawLen: number): string {
-  const pad = Math.max(0, width - 2 - rawLen)
-  return `${rgb(...BORDER)}\u2502${RESET}${content}${' '.repeat(pad)}${rgb(...BORDER)}\u2502${RESET}`
-}
-
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export function printStartupScreen(): void {
-  // Skip in non-interactive / CI / print mode
   if (process.env.CI || !process.stdout.isTTY) return
 
   const p = detectProvider()
-  const W = 62
   const out: string[] = []
+  const ver = MACRO.DISPLAY_VERSION ?? MACRO.VERSION
 
   out.push('')
 
-  // Gradient logo
-  const allLogo = [...LOGO_OPEN, '', ...LOGO_CLAUDE]
+  // ─── Top border ───
+  out.push(`  ${rgb(...BORDER)}╔${'═'.repeat(44)}╗${RESET}`)
+  out.push(`  ${rgb(...BORDER)}║${' '.repeat(44)}║${RESET}`)
+
+  // ─── Logo AGENT ───
+  const allLogo = [...LOGO_AGENT, '', ...LOGO_CHAT]
   const total = allLogo.length
   for (let i = 0; i < total; i++) {
     const t = total > 1 ? i / (total - 1) : 0
     if (allLogo[i] === '') {
-      out.push('')
+      out.push(`  ${rgb(...BORDER)}║${' '.repeat(44)}║${RESET}`)
     } else {
-      out.push(paintLine(allLogo[i], SUNSET_GRAD, t))
+      const painted = paintLine(allLogo[i], CYAN_GRAD, t)
+      const rawLen = allLogo[i].length
+      const pad = Math.max(0, 44 - rawLen)
+      out.push(`  ${rgb(...BORDER)}║${RESET}${painted}${' '.repeat(pad)}${rgb(...BORDER)}║${RESET}`)
     }
   }
 
+  out.push(`  ${rgb(...BORDER)}║${' '.repeat(44)}║${RESET}`)
+
+  // ─── Tagline ───
+  const tag1 = '── Conectando mentes. Sem fronteiras. ──'
+  const tag1Pad = Math.floor((44 - tag1.length) / 2)
+  out.push(`  ${rgb(...BORDER)}║${RESET}${' '.repeat(tag1Pad)}${rgb(...HIGHLIGHT)}${tag1}${RESET}${' '.repeat(44 - tag1Pad - tag1.length)}${rgb(...BORDER)}║${RESET}`)
+
+  out.push(`  ${rgb(...BORDER)}║${' '.repeat(44)}║${RESET}`)
+  out.push(`  ${rgb(...BORDER)}╚${'═'.repeat(44)}╝${RESET}`)
+
   out.push('')
 
-  // Tagline
-  out.push(`  ${rgb(...ACCENT)}\u2726${RESET} ${rgb(...CREAM)}Any model. Every tool. Zero limits.${RESET} ${rgb(...ACCENT)}\u2726${RESET}`)
+  // ─── Provider info — tree format ───
+  const treeColor = rgb(...BORDER)
+  const lblColor = rgb(...DIMCOL)
+  const valColor = rgb(...CREAM)
+  const accentColor = rgb(...ACCENT)
+
+  const ep = p.baseUrl.length > 28 ? p.baseUrl.slice(0, 25) + '...' : p.baseUrl
+  const sC = p.isLocal ? rgb(100, 200, 150) : rgb(...ACCENT)
+  const sL = p.isLocal ? 'local' : 'nuvem'
+
+  out.push(`  ${treeColor}┌─${RESET} ${lblColor}Provedor${RESET}  ${treeColor}───${RESET} ${valColor}${p.name}${RESET}`)
+  out.push(`  ${treeColor}├─${RESET} ${lblColor}Servidor${RESET}  ${treeColor}───${RESET} ${valColor}${ep}${RESET}`)
+  out.push(`  ${treeColor}└─${RESET} ${sC}●${RESET} ${lblColor}${sL}${RESET}     ${treeColor}───${RESET} ${DIM}${lblColor}Pronto ${RESET}${treeColor}│${RESET} ${accentColor}/help${RESET}`)
+
   out.push('')
-
-  // Provider info box
-  out.push(`${rgb(...BORDER)}\u2554${'\u2550'.repeat(W - 2)}\u2557${RESET}`)
-
-  const lbl = (k: string, v: string, c: RGB = CREAM): [string, number] => {
-    const padK = k.padEnd(9)
-    return [` ${DIM}${rgb(...DIMCOL)}${padK}${RESET} ${rgb(...c)}${v}${RESET}`, ` ${padK} ${v}`.length]
-  }
-
-  const provC: RGB = p.isLocal ? [130, 175, 130] : ACCENT
-  let [r, l] = lbl('Provider', p.name, provC)
-  out.push(boxRow(r, W, l))
-  ;[r, l] = lbl('Model', p.model)
-  out.push(boxRow(r, W, l))
-  const ep = p.baseUrl.length > 38 ? p.baseUrl.slice(0, 35) + '...' : p.baseUrl
-  ;[r, l] = lbl('Endpoint', ep)
-  out.push(boxRow(r, W, l))
-
-  out.push(`${rgb(...BORDER)}\u2560${'\u2550'.repeat(W - 2)}\u2563${RESET}`)
-
-  const sC: RGB = p.isLocal ? [130, 175, 130] : ACCENT
-  const sL = p.isLocal ? 'local' : 'cloud'
-  const sRow = ` ${rgb(...sC)}\u25cf${RESET} ${DIM}${rgb(...DIMCOL)}${sL}${RESET}    ${DIM}${rgb(...DIMCOL)}Ready \u2014 type ${RESET}${rgb(...ACCENT)}/help${RESET}${DIM}${rgb(...DIMCOL)} to begin${RESET}`
-  const sLen = ` \u25cf ${sL}    Ready \u2014 type /help to begin`.length
-  out.push(boxRow(sRow, W, sLen))
-
-  out.push(`${rgb(...BORDER)}\u255a${'\u2550'.repeat(W - 2)}\u255d${RESET}`)
-  out.push(`  ${DIM}${rgb(...DIMCOL)}openclaude ${RESET}${rgb(...ACCENT)}v${MACRO.DISPLAY_VERSION ?? MACRO.VERSION}${RESET}`)
+  out.push(`  ${DIM}${rgb(...DIMCOL)}agentchat${RESET} ${accentColor}v${ver}${RESET}`)
   out.push('')
 
   process.stdout.write(out.join('\n') + '\n')
