@@ -49,15 +49,21 @@ export function useAgentChatWatcher({
         const data = JSON.parse(readFileSync(WAKEUP_FILE, 'utf8'))
         if (!data.wake) return
 
+        const from = data.from || 'unknown'
         logForDebugging(
-          `[AgentChatWatcher] Wake signal received from ${data.from || 'unknown'}`,
+          `[AgentChatWatcher] Wake signal received from ${from}`,
         )
 
         // Clear the signal immediately to avoid re-processing
         writeFileSync(WAKEUP_FILE, JSON.stringify({ wake: false }))
 
-        // Enqueue as user input — REPL will process it on next tick
-        enqueue({ value: 'leia a mensagem', mode: 'prompt' })
+        // Build wake text with sender name (e.g. "Home digitando...")
+        const FRIENDLY_NAMES: Record<string, string> = {
+          'agent-home': 'Home',
+          'agent-work': 'Work',
+        }
+        const friendly = FRIENDLY_NAMES[from] || from
+        enqueue({ value: `${friendly} digitando...`, mode: 'prompt' })
       } catch {
         // File doesn't exist or invalid JSON — ignore
       }
@@ -94,9 +100,15 @@ export function useAgentChatWatcher({
     try {
       const data = JSON.parse(readFileSync(WAKEUP_FILE, 'utf8'))
       if (data.wake) {
+        const from = data.from || 'unknown'
         logForDebugging('[AgentChatWatcher] Pending wake signal found on idle')
         writeFileSync(WAKEUP_FILE, JSON.stringify({ wake: false }))
-        enqueue({ value: 'leia a mensagem', mode: 'prompt' })
+        const FRIENDLY_NAMES: Record<string, string> = {
+          'agent-home': 'Home',
+          'agent-work': 'Work',
+        }
+        const friendly = FRIENDLY_NAMES[from] || from
+        enqueue({ value: `${friendly} digitando...`, mode: 'prompt' })
       }
     } catch {}
   }, [isLoading])
