@@ -92,6 +92,7 @@ Beginner-friendly guides:
 - [Non-Technical Setup](docs/non-technical-setup.md)
 - [Windows Quick Start](docs/quick-start-windows.md)
 - [macOS / Linux Quick Start](docs/quick-start-mac-linux.md)
+- [VS Code Proxy Setup (Copilot Pro+)](docs/vscode-proxy-setup.md)
 
 Advanced and source-build guides:
 
@@ -102,6 +103,7 @@ Advanced and source-build guides:
 
 | Provider | Setup Path | Notes |
 | --- | --- | --- |
+| VS Code Proxy (Copilot Pro+) | [Setup Guide](docs/vscode-proxy-setup.md) | Zero token cost. Routes through Claude Code SDK proxy via Copilot. Requires setup hook |
 | OpenAI-compatible | `/provider` or env vars | Works with OpenAI, OpenRouter, DeepSeek, Groq, Mistral, LM Studio, and other compatible `/v1` servers |
 | Gemini | `/provider` or env vars | Supports API key, access token, or local ADC workflow on current `main` |
 | GitHub Models | `/onboard-github` | Interactive onboarding with saved credentials |
@@ -294,6 +296,34 @@ Coverage output is written to `coverage/lcov.info`, and OpenClaude also generate
 ## VS Code Extension
 
 The repo includes a VS Code extension in [`vscode-extension/openclaude-vscode`](vscode-extension/openclaude-vscode) for OpenClaude launch integration, provider-aware control-center UI, and theme support.
+
+### VS Code Proxy (Copilot Pro+)
+
+If you have **GitHub Copilot Pro+**, you can use OpenClaude with Claude models at zero token cost by routing through the Claude Code SDK proxy inside VS Code.
+
+**How it works:** Claude Code (Anthropic's VS Code extension) creates a local HTTP proxy that bridges to Claude via the Copilot Language Model API. A SessionStart hook captures the proxy credentials to disk, and the openclaude-vscode extension injects them into VS Code terminals — so `openclaude` connects automatically.
+
+**Requirements:**
+- VS Code with GitHub Copilot Pro+ active
+- Claude Code extension (`anthropic.claude-code`) installed
+- openclaude-vscode extension v0.2.0 installed (VSIX in this repo)
+- A SessionStart hook to persist proxy credentials
+
+For the complete step-by-step installation guide, see **[VS Code Proxy Setup Guide](docs/vscode-proxy-setup.md)**.
+
+**Quick overview of the setup:**
+
+1. Install the CLI: `bash setup.sh`
+2. Install openclaude-vscode v0.2.0 from the bundled VSIX
+3. Apply the `ANTHROPIC_AUTH_TOKEN` patch to `out/extension.js` (see guide)
+4. Create the `~/.claude/hooks/openclaude-proxy-seed.js` hook
+5. Register the hook in `~/.claude/settings.json`
+6. Open Claude Code chat in VS Code, send a message (starts the proxy)
+7. Open a new terminal, run `openclaude`
+
+| Provider | Setup | Notes |
+| --- | --- | --- |
+| VS Code Proxy | [Setup Guide](docs/vscode-proxy-setup.md) | Zero token cost via Copilot Pro+. Requires Claude Code extension + hook + openclaude-vscode |
 
 ## Security
 

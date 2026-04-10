@@ -19,6 +19,20 @@ process.env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS ??= 'true'
 // eslint-disable-next-line custom-rules/no-top-level-side-effects
 process.env.COREPACK_ENABLE_AUTO_PIN = '0';
 
+// DEBUG: trace where the process exits (remove after diagnosis)
+// eslint-disable-next-line custom-rules/no-top-level-side-effects
+if (process.env.OPENCLAUDE_DEBUG_EXIT === '1') {
+  process.on('exit', (code) => {
+    process.stderr.write(`\n[DEBUG] process.exit(${code}) — stack:\n${new Error().stack}\n`);
+  });
+  process.on('uncaughtException', (err) => {
+    process.stderr.write(`\n[DEBUG] uncaughtException: ${err.stack || err}\n`);
+  });
+  process.on('unhandledRejection', (reason) => {
+    process.stderr.write(`\n[DEBUG] unhandledRejection: ${reason instanceof Error ? reason.stack : reason}\n`);
+  });
+}
+
 // Set max heap size for child processes in CCR environments (containers have 16GB)
 // eslint-disable-next-line custom-rules/no-top-level-side-effects, custom-rules/no-process-env-top-level, custom-rules/safe-env-boolean-check
 if (process.env.CLAUDE_CODE_REMOTE === 'true') {
@@ -120,8 +134,13 @@ async function main(): Promise<void> {
             '://127.0.0.1',
           );
           process.env.ANTHROPIC_API_KEY = creds.apiKey;
+          // Mark as proxy-from-file so isVsCodeProxy() returns true (for auth
+          // bypass) but the session still runs the full interactive CLI flow
+          // (trust dialog, REPL mount). CLAUDE_CODE_ENTRYPOINT is NOT set to
+          // 'sdk-ts' — that would skip setSessionTrustAccepted() in
+          // showSetupScreens(), preventing the REPL from mounting.
           process.env.CLAUDECODE = '1';
-          process.env.CLAUDE_CODE_ENTRYPOINT = 'sdk-ts';
+          process.env.OPENCLAUDE_PROXY_FROM_FILE = '1';
         }
       } catch (err) {
         // Credentials file missing or malformed — expected outside VS Code

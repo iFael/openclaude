@@ -1,5 +1,5 @@
 {
-  "name": "@gitlawb/openclaude",
+  "name": "openclaude",
   "version": "0.1.9",
   "description": "Claude Code opened to any LLM — OpenAI, Gemini, DeepSeek, Ollama, and 200+ models",
   "type": "module",
@@ -51,6 +51,7 @@
     "hardening:check": "bun run smoke && bun run doctor:runtime",
     "hardening:strict": "bun run typecheck && bun run hardening:check",
     "prepack": "npm run build",
+    "postinstall": "node -e \"try{require('child_process').execSync('bun run scripts/postinstall-patch-ps1.ts',{stdio:'ignore'})}catch{}\"",
     "prepare": ""
   },
   "dependencies": {

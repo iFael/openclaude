@@ -121,6 +121,13 @@ export async function showSetupScreens(root: Root, permissionMode: PermissionMod
       if (!config.hasCompletedOnboarding) {
         completeOnboarding();
       }
+      // When running from an external terminal with proxy credentials loaded
+      // from file, we still need to establish trust — without this the REPL
+      // never mounts (setSessionTrustAccepted gates downstream config lookups).
+      setSessionTrustAccepted(true);
+      resetGrowthBook();
+      void initializeGrowthBook();
+      void getSystemContext();
       // fall through to trust dialog and permission mode below
       return false;
     }

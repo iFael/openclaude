@@ -96,10 +96,12 @@ function isManagedOAuthContext(): boolean {
 }
 
 /**
- * Detects when openclaude is running inside the VS Code Claude Code proxy
- * environment (GitHub Copilot Pro+ terminal integration). Returns true when
- * ALL three conditions hold: ANTHROPIC_BASE_URL points to localhost (any port),
- * CLAUDE_CODE_ENTRYPOINT is 'sdk-ts', and CLAUDECODE is '1'.
+ * Detects when openclaude is running with the VS Code Claude Code proxy
+ * (GitHub Copilot Pro+ integration). Returns true when ANTHROPIC_BASE_URL
+ * points to localhost and EITHER:
+ *   - CLAUDE_CODE_ENTRYPOINT is 'sdk-ts' and CLAUDECODE is '1' (inside VS Code), OR
+ *   - OPENCLAUDE_PROXY_FROM_FILE is '1' and CLAUDECODE is '1' (external terminal
+ *     using persisted proxy credentials from sdk-proxy-credentials.json).
  * Pure synchronous function — no I/O, no side effects. (D-01, D-02, D-03)
  */
 export function isVsCodeProxy(): boolean {
@@ -107,10 +109,11 @@ export function isVsCodeProxy(): boolean {
   if (!baseUrl) return false
   try {
     const hostname = new URL(baseUrl).hostname
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1'
+    if (!isLocalhost || process.env.CLAUDECODE !== '1') return false
     return (
-      (hostname === 'localhost' || hostname === '127.0.0.1') &&
-      process.env.CLAUDE_CODE_ENTRYPOINT === 'sdk-ts' &&
-      process.env.CLAUDECODE === '1'
+      process.env.CLAUDE_CODE_ENTRYPOINT === 'sdk-ts' ||
+      process.env.OPENCLAUDE_PROXY_FROM_FILE === '1'
     )
   } catch {
     return false
