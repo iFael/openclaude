@@ -149,6 +149,18 @@ async function main(): Promise<void> {
     }
   }
 
+  // VS Code proxy health check: wait for the proxy to become available
+  // before proceeding. Handles the race where openclaude starts before
+  // the VS Code Claude Code extension has the proxy ready.
+  if (process.env.ANTHROPIC_BASE_URL && process.env.ANTHROPIC_API_KEY?.startsWith('vscode-lm-')) {
+    const { waitForVsCodeProxy } = await import('../utils/vsCodeProxyRefresh.js')
+    const alive = await waitForVsCodeProxy(15000, 2000)
+    if (!alive) {
+      // biome-ignore lint/suspicious/noConsole:: intentional warning
+      console.warn('[openclaude] VS Code proxy not reachable after 15s — requests may fail')
+    }
+  }
+
   {
     const { enableConfigs } = await import('../utils/config.js')
     enableConfigs()

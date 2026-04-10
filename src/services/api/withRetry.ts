@@ -34,6 +34,7 @@ import {
 import { isNonCustomOpusModel } from '../../utils/model/model.js'
 import { disableKeepAlive } from '../../utils/proxy.js'
 import { sleep } from '../../utils/sleep.js'
+import { refreshVsCodeProxyCredentials } from '../../utils/vsCodeProxyRefresh.js'
 import type { ThinkingConfig } from '../../utils/thinking.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../analytics/growthbook.js'
 import {
@@ -124,6 +125,14 @@ function isStaleConnectionError(error: unknown): boolean {
   }
   const details = extractConnectionErrorDetails(error)
   return details?.code === 'ECONNRESET' || details?.code === 'EPIPE'
+}
+
+function isProxyConnectionRefused(error: unknown): boolean {
+  if (!(error instanceof APIConnectionError)) {
+    return false
+  }
+  const details = extractConnectionErrorDetails(error)
+  return details?.code === 'ECONNREFUSED'
 }
 
 export interface RetryContext {
@@ -225,6 +234,7 @@ export async function* withRetry<T>(
       // - Vertex-specific auth errors (credential refresh failures, 401)
       // - ECONNRESET/EPIPE: stale keep-alive socket; disable pooling and reconnect
       const isStaleConnection = isStaleConnectionError(lastError)
+      const isProxyRefused = isProxyConnectionRefused(lastError)
       if (
         isStaleConnection &&
         getFeatureValue_CACHED_MAY_BE_STALE(
@@ -238,13 +248,24 @@ export async function* withRetry<T>(
         disableKeepAlive()
       }
 
+      // VS Code proxy ECONNREFUSED: the proxy restarted on a new port.
+      // Re-read sdk-proxy-credentials.json to pick up the new port before
+      // creating a fresh client on the next attempt.
+      if (isProxyRefused) {
+        const refreshed = refreshVsCodeProxyCredentials()
+        logForDebugging(
+          `Proxy ECONNREFUSED — credentials ${refreshed ? 'refreshed (new port)' : 'unchanged'}`,
+        )
+      }
+
       if (
         client === null ||
         (lastError instanceof APIError && lastError.status === 401) ||
         isOAuthTokenRevokedError(lastError) ||
         isBedrockAuthError(lastError) ||
         isVertexAuthError(lastError) ||
-        isStaleConnection
+        isStaleConnection ||
+        isProxyRefused
       ) {
         // On 401 "token expired" or 403 "token revoked", force a token refresh
         if (
