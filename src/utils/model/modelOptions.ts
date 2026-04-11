@@ -600,10 +600,30 @@ function getKnownModelOption(model: string): ModelOption | null {
 
 export function getModelOptions(fastMode = false): ModelOption[] {
   if (getAPIProvider() === 'github') {
-    return filterModelOptionsByAllowlist(getModelOptionsBase(fastMode))
+    const ghOptions = getModelOptionsBase(fastMode)
+    // Append Ollama models for github provider too
+    if (hasOllamaConfigured()) {
+      const ollamaModels = getCachedOllamaModelOptions()
+      for (const opt of ollamaModels) {
+        if (!ghOptions.some(existing => existing.value === opt.value)) {
+          ghOptions.push(opt)
+        }
+      }
+    }
+    return filterModelOptionsByAllowlist(ghOptions)
   }
 
   const options = getModelOptionsBase(fastMode)
+
+  // Append Ollama models if configured (unified picker for all providers)
+  if (hasOllamaConfigured()) {
+    const ollamaModels = getCachedOllamaModelOptions()
+    for (const opt of ollamaModels) {
+      if (!options.some(existing => existing.value === opt.value)) {
+        options.push(opt)
+      }
+    }
+  }
 
   // Add the custom model from the ANTHROPIC_CUSTOM_MODEL_OPTION env var
   const envCustomModel = process.env.ANTHROPIC_CUSTOM_MODEL_OPTION
