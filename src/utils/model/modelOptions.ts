@@ -34,7 +34,7 @@ import {
 import { has1mContext } from '../context.js'
 import { getGlobalConfig } from '../config.js'
 import { getActiveOpenAIModelOptionsCache } from '../providerProfiles.js'
-import { getCachedOllamaModelOptions, isOllamaProvider } from './ollamaModels.js'
+import { getCachedOllamaModelOptions, isOllamaProvider, hasOllamaConfigured } from './ollamaModels.js'
 
 // @[MODEL LAUNCH]: Update all the available and default model option strings below.
 
@@ -354,7 +354,7 @@ function getCodexModelOptions(): ModelOption[] {
 function getModelOptionsBase(fastMode = false): ModelOption[] {
   if (getAPIProvider() === 'github') {
     const githubModel = process.env.OPENAI_MODEL?.trim() || 'github:copilot'
-    return [
+    const options: ModelOption[] = [
       getDefaultOptionForUser(fastMode),
       {
         value: githubModel,
@@ -362,6 +362,14 @@ function getModelOptionsBase(fastMode = false): ModelOption[] {
         description: 'GitHub Models default',
       },
     ]
+    // Append Ollama models if OLLAMA_BASE_URL is configured (unified picker)
+    if (hasOllamaConfigured()) {
+      const ollamaModels = getCachedOllamaModelOptions()
+      if (ollamaModels.length > 0) {
+        options.push(...ollamaModels)
+      }
+    }
+    return options
   }
 
   // When using Ollama, show models from the Ollama server instead of Claude models

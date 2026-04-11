@@ -11,6 +11,12 @@ let cachedOllamaOptions: ModelOption[] | null = null
 let fetchPromise: Promise<ModelOption[]> | null = null
 
 /**
+ * Stored original provider env vars so we can restore them
+ * when switching back from Ollama to the original provider.
+ */
+let savedProviderEnv: Record<string, string | undefined> | null = null
+
+/**
  * Returns true when the current OPENAI_BASE_URL points at an Ollama instance.
  * Detects OLLAMA_BASE_URL presence, /v1 suffixed URLs, and the raw base URL.
  */
@@ -27,6 +33,64 @@ export function isOllamaProvider(): boolean {
     // ignore
   }
   return false
+}
+
+/**
+ * Returns true if OLLAMA_BASE_URL is configured, meaning Ollama models
+ * should be discoverable regardless of the active API provider.
+ */
+export function hasOllamaConfigured(): boolean {
+  return Boolean(process.env.OLLAMA_BASE_URL)
+}
+
+/**
+ * Check if a model value corresponds to a cached Ollama model.
+ */
+export function isOllamaModel(model: string | null): boolean {
+  if (!model) return false
+  const cached = getCachedOllamaModelOptions()
+  return cached.some(opt => opt.value === model)
+}
+
+/**
+ * Returns true if the provider was dynamically switched to Ollama.
+ */
+export function isInOllamaMode(): boolean {
+  return savedProviderEnv !== null
+}
+
+/**
+ * Switch process.env to route API requests through Ollama.
+ * Saves the original provider env vars for later restoration.
+ */
+export function switchToOllamaProvider(): void {
+  if (savedProviderEnv) return // already switched
+  savedProviderEnv = {
+    CLAUDE_CODE_USE_GITHUB: process.env.CLAUDE_CODE_USE_GITHUB,
+    CLAUDE_CODE_USE_OPENAI: process.env.CLAUDE_CODE_USE_OPENAI,
+    OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  }
+  const ollamaUrl = getOllamaApiBaseUrl()
+  delete process.env.CLAUDE_CODE_USE_GITHUB
+  process.env.CLAUDE_CODE_USE_OPENAI = '1'
+  process.env.OPENAI_BASE_URL = `${ollamaUrl}/v1`
+  process.env.OPENAI_API_KEY = 'ollama'
+}
+
+/**
+ * Restore the original provider env vars after switching away from Ollama.
+ */
+export function restoreOriginalProvider(): void {
+  if (!savedProviderEnv) return
+  for (const [key, value] of Object.entries(savedProviderEnv)) {
+    if (value === undefined) {
+      delete process.env[key]
+    } else {
+      process.env[key] = value
+    }
+  }
+  savedProviderEnv = null
 }
 
 /**
@@ -82,7 +146,7 @@ export async function fetchOllamaModels(): Promise<ModelOption[]> {
  * Prefetch and cache Ollama models. Call during startup.
  */
 export function prefetchOllamaModels(): void {
-  if (!isOllamaProvider()) return
+  if (!isOllamaProvider() && !hasOllamaConfigured()) return
   if (cachedOllamaOptions && cachedOllamaOptions.length > 0) return
   if (fetchPromise) return
   fetchPromise = fetchOllamaModels()

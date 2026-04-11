@@ -21,6 +21,7 @@ import { getDefaultMainLoopModelSetting, isOpus1mMergeEnabled, renderDefaultMode
 import { isModelAllowed } from '../../utils/model/modelAllowlist.js';
 import { validateModel } from '../../utils/model/validateModel.js';
 import { getAdditionalModelOptionsCacheScope } from '../../services/api/providerConfig.js';
+import { isOllamaModel, switchToOllamaProvider, restoreOriginalProvider, isInOllamaMode } from '../../utils/model/ollamaModels.js';
 function ModelPickerWrapper(t0) {
   const $ = _c(17);
   const {
@@ -51,6 +52,12 @@ function ModelPickerWrapper(t0) {
   let t2;
   if ($[3] !== isFastMode || $[4] !== mainLoopModel || $[5] !== onDone || $[6] !== setAppState) {
     t2 = function handleSelect(model, effort) {
+      // Switch provider if selecting an Ollama model or switching back
+      if (isOllamaModel(model)) {
+        switchToOllamaProvider()
+      } else if (isInOllamaMode()) {
+        restoreOriginalProvider()
+      }
       logEvent("tengu_model_command_menu", {
         action: model as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
         from_model: mainLoopModel as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
@@ -202,6 +209,12 @@ function SetModelAndClose({
       }
     }
     function setModel(modelValue: string | null): void {
+      // Switch provider if selecting an Ollama model or switching back
+      if (isOllamaModel(modelValue)) {
+        switchToOllamaProvider()
+      } else if (isInOllamaMode()) {
+        restoreOriginalProvider()
+      }
       setAppState(prev => ({
         ...prev,
         mainLoopModel: modelValue,
