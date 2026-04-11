@@ -432,6 +432,48 @@ function trackApiUsage(bodyText: string | undefined): void {
   }
 }
 
+const HEADERS_LOG_FILE = join(process.env.TEMP || '/tmp', 'agentchat-api-headers.json')
+
+function logResponseHeaders(response: Response, url: string): void {
+  try {
+    const allHeaders: Record<string, string> = {}
+    response.headers.forEach((value, key) => {
+      allHeaders[key] = value
+    })
+
+    // Read existing log or create new
+    let log: {
+      requests: Array<{
+        timestamp: string
+        url: string
+        status: number
+        headers: Record<string, string>
+      }>
+    }
+    try {
+      log = JSON.parse(readFileSync(HEADERS_LOG_FILE, 'utf8'))
+    } catch {
+      log = { requests: [] }
+    }
+
+    // Keep last 20 requests
+    if (log.requests.length >= 20) {
+      log.requests = log.requests.slice(-19)
+    }
+
+    log.requests.push({
+      timestamp: new Date().toISOString(),
+      url,
+      status: response.status,
+      headers: allHeaders,
+    })
+
+    writeFileSync(HEADERS_LOG_FILE, JSON.stringify(log, null, 2))
+  } catch {
+    // never let logging crash the fetch
+  }
+}
+
 function buildFetch(
   fetchOverride: ClientOptions['fetch'],
   source: string | undefined,
@@ -466,6 +508,9 @@ function buildFetch(
         const body = init?.body
         const bodyText = typeof body === 'string' ? body : undefined
         trackApiUsage(bodyText)
+        // Log all response headers for rate limit investigation
+        const reqUrl = input instanceof Request ? input.url : String(input)
+        logResponseHeaders(response, reqUrl)
       } catch {
         // never let tracking crash the fetch
       }
