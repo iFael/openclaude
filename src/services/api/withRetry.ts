@@ -70,7 +70,6 @@ function writeRateLimitStatus(error: APIError): void {
     const resetsAt = resetHeader ? Number(resetHeader) : null
     const rateLimitType = error.headers?.get?.('anthropic-ratelimit-unified-representative-claim')
     const overageStatus = error.headers?.get?.('anthropic-ratelimit-unified-overage-status')
-
     const data = {
       limited: true,
       status: error.status,
@@ -81,11 +80,10 @@ function writeRateLimitStatus(error: APIError): void {
       detectedAt: new Date().toISOString(),
       message: error.message?.substring(0, 200) || null,
     }
-
     fs.writeFileSync(RATELIMIT_FILE, JSON.stringify(data, null, 2))
     logForDebugging(`Rate limit detected, wrote ${RATELIMIT_FILE}`)
   } catch {
-    // Silent fail — don't break retry flow for status file
+    // Silent fail
   }
 }
 
@@ -321,7 +319,6 @@ export async function* withRetry<T>(
         `API error (attempt ${attempt}/${maxRetries + 1}): ${error instanceof APIError ? `${error.status} ${error.message}` : errorMessage(error)}`,
         { level: 'error' },
       )
-        // Write rate limit status to file for statusline consumption
         if (error instanceof APIError && (error.status === 429 || is529Error(error))) {
           writeRateLimitStatus(error)
         }

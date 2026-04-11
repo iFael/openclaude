@@ -1,5 +1,8 @@
 import Anthropic, { type ClientOptions } from '@anthropic-ai/sdk'
 import { randomUUID } from 'crypto'
+import { writeFileSync } from 'fs'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import {
   checkAndRefreshOAuthTokenIfNeeded,
   getAnthropicApiKey,
@@ -397,6 +400,38 @@ function getCustomHeaders(): Record<string, string> {
 
 export const CLIENT_REQUEST_ID_HEADER = 'x-client-request-id'
 
+const USAGE_FILE = join(process.env.TEMP || '/tmp', 'agentchat-api-usage.json')
+
+function trackApiUsage(bodyText: string | undefined): void {
+  try {
+    let usage: {
+      requests: number
+      estimatedInputTokens: number
+      sessionStart: string
+      lastRequestAt: string
+    }
+    try {
+      usage = JSON.parse(readFileSync(USAGE_FILE, 'utf8'))
+    } catch {
+      usage = {
+        requests: 0,
+        estimatedInputTokens: 0,
+        sessionStart: new Date().toISOString(),
+        lastRequestAt: '',
+      }
+    }
+    usage.requests++
+    usage.lastRequestAt = new Date().toISOString()
+    // Estimate input tokens from body length (~4 chars per token)
+    if (bodyText) {
+      usage.estimatedInputTokens += Math.ceil(bodyText.length / 4)
+    }
+    writeFileSync(USAGE_FILE, JSON.stringify(usage, null, 2))
+  } catch {
+    // never let tracking crash the fetch
+  }
+}
+
 function buildFetch(
   fetchOverride: ClientOptions['fetch'],
   source: string | undefined,
@@ -426,6 +461,15 @@ function buildFetch(
     } catch {
       // never let logging crash the fetch
     }
-    return inner(input, { ...init, headers })
+    return inner(input, { ...init, headers }).then((response) => {
+      try {
+        const body = init?.body
+        const bodyText = typeof body === 'string' ? body : undefined
+        trackApiUsage(bodyText)
+      } catch {
+        // never let tracking crash the fetch
+      }
+      return response
+    })
   }
 }
