@@ -1,4 +1,6 @@
 import { feature } from 'bun:bundle'
+import * as fs from 'fs'
+import * as path from 'path'
 import type Anthropic from '@anthropic-ai/sdk'
 import {
   APIConnectionError,
@@ -54,6 +56,38 @@ const DEFAULT_MAX_RETRIES = 10
 const FLOOR_OUTPUT_TOKENS = 3000
 const MAX_529_RETRIES = 3
 export const BASE_DELAY_MS = 500
+
+const RATELIMIT_FILE = path.join(
+  process.env.TEMP || process.env.TMPDIR || '/tmp',
+  'agentchat-ratelimit.json',
+)
+
+function writeRateLimitStatus(error: APIError): void {
+  try {
+    const retryAfter = getRetryAfter(error)
+    const retryAfterMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : null
+    const resetHeader = error.headers?.get?.('anthropic-ratelimit-unified-reset')
+    const resetsAt = resetHeader ? Number(resetHeader) : null
+    const rateLimitType = error.headers?.get?.('anthropic-ratelimit-unified-representative-claim')
+    const overageStatus = error.headers?.get?.('anthropic-ratelimit-unified-overage-status')
+
+    const data = {
+      limited: true,
+      status: error.status,
+      resetsAt: resetsAt || (retryAfterMs ? Math.floor((Date.now() + retryAfterMs) / 1000) : null),
+      retryAfterMs: retryAfterMs || null,
+      rateLimitType: rateLimitType || null,
+      overageStatus: overageStatus || null,
+      detectedAt: new Date().toISOString(),
+      message: error.message?.substring(0, 200) || null,
+    }
+
+    fs.writeFileSync(RATELIMIT_FILE, JSON.stringify(data, null, 2))
+    logForDebugging(`Rate limit detected, wrote ${RATELIMIT_FILE}`)
+  } catch {
+    // Silent fail — don't break retry flow for status file
+  }
+}
 
 // Foreground query sources where the user IS blocking on the result — these
 // retry on 529. Everything else (summaries, titles, suggestions, classifiers)
@@ -287,6 +321,10 @@ export async function* withRetry<T>(
         `API error (attempt ${attempt}/${maxRetries + 1}): ${error instanceof APIError ? `${error.status} ${error.message}` : errorMessage(error)}`,
         { level: 'error' },
       )
+        // Write rate limit status to file for statusline consumption
+        if (error instanceof APIError && (error.status === 429 || is529Error(error))) {
+          writeRateLimitStatus(error)
+        }
         if (isQuotaExhausted(error)) {
           throw new CannotRetryError(
             new Error(
