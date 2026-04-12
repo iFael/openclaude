@@ -433,6 +433,67 @@ function trackApiUsage(bodyText: string | undefined): void {
 }
 
 const HEADERS_LOG_FILE = join(process.env.TEMP || '/tmp', 'agentchat-api-headers.json')
+const QUOTA_FILE = join(process.env.TEMP || '/tmp', 'copilot-quota-headers.json')
+const SOFT_THROTTLE_FILE = join(process.env.TEMP || '/tmp', 'agentchat-ratelimit.json')
+const THROTTLE_LATENCY_MS = 30000
+
+function detectSoftThrottle(latencyMs: number, status: number): void {
+  try {
+    if (latencyMs < THROTTLE_LATENCY_MS) return
+    const data = {
+      limited: true,
+      status,
+      resetsAt: null,
+      retryAfterMs: null,
+      rateLimitType: 'soft_throttle',
+      overageStatus: null,
+      detectedAt: new Date().toISOString(),
+      latencyMs,
+      message: `Response took ${Math.round(latencyMs / 1000)}s (threshold: ${THROTTLE_LATENCY_MS / 1000}s)`,
+    }
+    writeFileSync(SOFT_THROTTLE_FILE, JSON.stringify(data, null, 2))
+  } catch {
+    // Silent fail
+  }
+}
+
+function saveQuotaHeaders(headers: Record<string, string>): void {
+  try {
+    const quotaKeys = Object.keys(headers).filter(k => k.startsWith('x-quota-snapshot'))
+    if (quotaKeys.length === 0) return
+
+    // Use the premium_interactions snapshot as the main rawHeader
+    const rawHeader = headers['x-quota-snapshot-premium_interactions'] || headers[quotaKeys[0]] || ''
+    if (!rawHeader) return
+
+    const parsedHeaders: Record<string, string> = {}
+    for (const k of quotaKeys) {
+      parsedHeaders[k] = headers[k]
+    }
+
+    let data: { entries: Array<{ ts: string; rawHeader: string; parsedHeaders: Record<string, string> }> }
+    try {
+      data = JSON.parse(readFileSync(QUOTA_FILE, 'utf8'))
+    } catch {
+      data = { entries: [] }
+    }
+
+    // Keep last 50 entries
+    if (data.entries.length >= 50) {
+      data.entries = data.entries.slice(-49)
+    }
+
+    data.entries.push({
+      ts: new Date().toISOString(),
+      rawHeader,
+      parsedHeaders,
+    })
+
+    writeFileSync(QUOTA_FILE, JSON.stringify(data, null, 2))
+  } catch {
+    // never let quota tracking crash the fetch
+  }
+}
 
 function logResponseHeaders(response: Response, url: string): void {
   try {
@@ -440,6 +501,9 @@ function logResponseHeaders(response: Response, url: string): void {
     response.headers.forEach((value, key) => {
       allHeaders[key] = value
     })
+
+    // Extract and save quota headers separately
+    saveQuotaHeaders(allHeaders)
 
     // Read existing log or create new
     let log: {
@@ -503,6 +567,7 @@ function buildFetch(
     } catch {
       // never let logging crash the fetch
     }
+    const fetchStart = Date.now()
     return inner(input, { ...init, headers }).then((response) => {
       try {
         const body = init?.body
@@ -511,6 +576,9 @@ function buildFetch(
         // Log all response headers for rate limit investigation
         const reqUrl = input instanceof Request ? input.url : String(input)
         logResponseHeaders(response, reqUrl)
+        // Detect soft throttling via latency
+        const latencyMs = Date.now() - fetchStart
+        detectSoftThrottle(latencyMs, response.status)
       } catch {
         // never let tracking crash the fetch
       }
