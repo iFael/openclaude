@@ -15,7 +15,7 @@ const CREDENTIALS_PATH = join(homedir(), '.claude', 'sdk-proxy-credentials.json'
 
 /**
  * Re-read sdk-proxy-credentials.json and update ANTHROPIC_BASE_URL /
- * ANTHROPIC_API_KEY if the file contains a different (newer) port.
+ * ANTHROPIC_AUTH_TOKEN if the file contains a different (newer) port.
  *
  * Returns true if credentials were actually updated, false otherwise.
  */
@@ -31,7 +31,7 @@ export function refreshVsCodeProxyCredentials(): boolean {
     const currentUrl = process.env.ANTHROPIC_BASE_URL
 
     // Only update if the credentials actually changed
-    if (newUrl === currentUrl && creds.apiKey === process.env.ANTHROPIC_API_KEY) {
+    if (newUrl === currentUrl && creds.apiKey === process.env.ANTHROPIC_AUTH_TOKEN) {
       return false
     }
 
@@ -44,7 +44,7 @@ export function refreshVsCodeProxyCredentials(): boolean {
     if (!String(creds.apiKey).startsWith('vscode-lm-')) return false
 
     process.env.ANTHROPIC_BASE_URL = newUrl
-    process.env.ANTHROPIC_API_KEY = creds.apiKey
+    process.env.ANTHROPIC_AUTH_TOKEN = creds.apiKey
     return true
   } catch {
     return false

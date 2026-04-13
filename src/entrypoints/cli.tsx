@@ -98,7 +98,7 @@ async function main(): Promise<void> {
     const { homedir } = await import('os');
 
     // If Claude Code already injected env vars, just apply the IPv4 fix
-    if (process.env.ANTHROPIC_BASE_URL && process.env.ANTHROPIC_API_KEY) {
+    if (process.env.ANTHROPIC_BASE_URL && (process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY)) {
       process.env.ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL.replace(
         '://localhost',
         '://127.0.0.1',
@@ -112,6 +112,7 @@ async function main(): Promise<void> {
             // Non-loopback SDK proxy URL — clear to prevent data exfiltration
             delete process.env.ANTHROPIC_BASE_URL;
             delete process.env.ANTHROPIC_API_KEY;
+            delete process.env.ANTHROPIC_AUTH_TOKEN;
             delete process.env.CLAUDECODE;
             delete process.env.CLAUDE_CODE_ENTRYPOINT;
           }
@@ -133,7 +134,7 @@ async function main(): Promise<void> {
             '://localhost',
             '://127.0.0.1',
           );
-          process.env.ANTHROPIC_API_KEY = creds.apiKey;
+          process.env.ANTHROPIC_AUTH_TOKEN = creds.apiKey;
           // Mark as proxy-from-file so isVsCodeProxy() returns true (for auth
           // bypass) but the session still runs the full interactive CLI flow
           // (trust dialog, REPL mount). CLAUDE_CODE_ENTRYPOINT is NOT set to
@@ -152,7 +153,7 @@ async function main(): Promise<void> {
   // VS Code proxy health check: wait for the proxy to become available
   // before proceeding. Handles the race where openclaude starts before
   // the VS Code Claude Code extension has the proxy ready.
-  if (process.env.ANTHROPIC_BASE_URL && process.env.ANTHROPIC_API_KEY?.startsWith('vscode-lm-')) {
+  if (process.env.ANTHROPIC_BASE_URL && (process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY)?.startsWith('vscode-lm-')) {
     const { waitForVsCodeProxy } = await import('../utils/vsCodeProxyRefresh.js')
     const alive = await waitForVsCodeProxy(15000, 2000)
     if (!alive) {

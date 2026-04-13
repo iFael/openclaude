@@ -528,7 +528,7 @@ async function syncSdkProxyCredentials(): Promise<void> {
     const alive = await verifySdkProxy(creds.baseUrl);
     if (alive && _envCollection) {
       _envCollection.replace('ANTHROPIC_BASE_URL', baseUrl);
-      _envCollection.replace('ANTHROPIC_API_KEY', apiKey);
+      _envCollection.replace('ANTHROPIC_AUTH_TOKEN', apiKey);
       _envCollection.replace('CLAUDECODE', '1');
       _envCollection.replace('CLAUDE_CODE_ENTRYPOINT', 'sdk-ts');
       _lastBaseUrl = baseUrl;
@@ -540,7 +540,7 @@ async function syncSdkProxyCredentials(): Promise<void> {
   // No valid proxy — clear stale env vars
   if (_lastBaseUrl && _envCollection) {
     _envCollection.delete('ANTHROPIC_BASE_URL');
-    _envCollection.delete('ANTHROPIC_API_KEY');
+    _envCollection.delete('ANTHROPIC_AUTH_TOKEN');
     _envCollection.delete('CLAUDECODE');
     _envCollection.delete('CLAUDE_CODE_ENTRYPOINT');
     _lastBaseUrl = '';

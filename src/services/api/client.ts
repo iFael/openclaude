@@ -9,6 +9,7 @@ import {
   getApiKeyFromApiKeyHelper,
   getClaudeAIOAuthTokens,
   isClaudeAISubscriber,
+  isVsCodeProxy,
   refreshAndGetAwsCredentials,
   refreshGcpCredentialsIfNeeded,
 } from 'src/utils/auth.js'
@@ -343,11 +344,17 @@ export async function getAnthropicClient({
   }
 
   // Determine authentication method based on available tokens
+  // VS Code proxy uses ANTHROPIC_AUTH_TOKEN (Authorization: Bearer) — not ANTHROPIC_API_KEY (x-api-key)
+  // Also handles legacy case where old extension still injects ANTHROPIC_API_KEY with vscode-lm- prefix
+  const vsCodeProxyToken = isVsCodeProxy()
+    ? (process.env.ANTHROPIC_AUTH_TOKEN ||
+       (process.env.ANTHROPIC_API_KEY?.startsWith('vscode-lm-') ? process.env.ANTHROPIC_API_KEY : undefined))
+    : undefined
   const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
-    apiKey: isClaudeAISubscriber() ? null : apiKey || getAnthropicApiKey(),
+    apiKey: isClaudeAISubscriber() ? null : (vsCodeProxyToken ? null : apiKey || getAnthropicApiKey()),
     authToken: isClaudeAISubscriber()
       ? getClaudeAIOAuthTokens()?.accessToken
-      : undefined,
+      : vsCodeProxyToken,
     // Set baseURL from OAuth config when using staging OAuth
     ...(process.env.USER_TYPE === 'ant' &&
     isEnvTruthy(process.env.USE_STAGING_OAUTH)
